@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 13%;
+    --primary: 185 100% 27%; /* #007D8A */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 40 91% 66%; /* #F7C358 */
+    --secondary-foreground: 0 0% 13%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 185 100% 95%;
+    --accent-foreground: 185 100% 27%;
+    --destructive: 0 79% 65%; /* #EC5E5E */
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 185 100% 27%;
+    --radius: 0.75rem;
+
+    --status-present: 140 52% 55%; /* #50C878 */
+    --status-absent: 0 100% 65%; /* #FF4B4B */
+  }
+
+  .dark {
+    --background: 0 0% 4%; /* #0A0A0A */
+    --foreground: 0 0% 88%; /* #E0E0E0 */
+    --card: 0 0% 8%; /* #141414 */
+    --card-foreground: 0 0% 88%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 88%;
+    --primary: 185 100% 27%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 40 91% 66%;
+    --secondary-foreground: 0 0% 13%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 185 25% 15%;
+    --accent-foreground: 0 0% 88%;
+    --destructive: 0 79% 65%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 185 100% 27%;
+    
+    --status-present: 140 52% 55%;
+    --status-absent: 0 100% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+h1, h2, h3, .font-headline {
+  font-family: 'Alegreya', serif;
+}
+
+.font-technical {
+  font-family: 'PT Sans', sans-serif;
+}
+
+.sticky-column {
+  position: sticky;
+  left: 0;
+  z-index: 40;
+  @apply bg-card;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  @apply bg-card;
+}
+
+.on-day-off {
+  background-color: rgba(236, 94, 94, 0.08);
+}
+
+.overscroll-none {
+  overscroll-behavior: none;
+}
