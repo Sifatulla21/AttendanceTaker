@@ -3,7 +3,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AppProvider, useApp } from '@/lib/store';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { BottomNav } from '@/components/layout/BottomNav';
@@ -38,7 +38,7 @@ function AppContent() {
               Sign in with Google
             </Button>
             <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest font-medium opacity-50">
-              Biometric-linked profile synchronization
+              Encrypted Profile Synchronization
             </p>
           </div>
         </div>

@@ -6,7 +6,7 @@ import { FirebaseClientProvider } from '@/firebase';
 
 export const metadata: Metadata = {
   title: 'Attendify Pro | Student Attendance Manager',
-  description: 'Production-ready attendance management with AI insights.',
+  description: 'Production-ready attendance management with secure Firebase synchronization.',
 };
 
 export default function RootLayout({
