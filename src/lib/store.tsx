@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
@@ -17,7 +18,6 @@ import {
   addDoc, 
   deleteDoc, 
   updateDoc,
-  writeBatch
 } from 'firebase/firestore';
 import { 
   signInWithPopup, 
@@ -41,7 +41,8 @@ interface AppContextType {
   user: any;
   login: () => void;
   backup: () => void;
-  restore: (data: string) => void;
+  restore: (data: string) => Promise<void>;
+  isRestoring: boolean;
 }
 
 const defaultSettings: AppSettings = {
@@ -59,6 +60,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
 
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const settingsRef = useMemo(() => user && db ? doc(db, 'users', user.uid, 'settings', 'prefs') : null, [user, db]);
   const { data: remoteSettings } = useDoc<AppSettings>(settingsRef);
@@ -227,31 +229,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const restore = async (jsonData: string) => {
     if (!user || !db) return;
     try {
+      setIsRestoring(true);
       const parsed = JSON.parse(jsonData) as AppState;
-      toast({ title: "Restoring...", description: "Please wait while we sync your data." });
+      toast({ title: "Restoring...", description: "Rebuilding your attendance records in the cloud." });
 
       if (parsed.settings) {
         await setDoc(doc(db, 'users', user.uid, 'settings', 'prefs'), parsed.settings);
       }
 
-      for (const cls of parsed.classes) {
-        const classRef = await addDoc(collection(db, 'users', user.uid, 'classes'), {
-          name: cls.name,
-          onDays: cls.onDays
-        });
-
-        for (const student of cls.students) {
-          const studentAttendance = cls.attendance[student.id] || {};
-          await addDoc(collection(db, 'users', user.uid, 'classes', classRef.id, 'students'), {
-            roll: student.roll,
-            attendance: studentAttendance
+      if (parsed.classes && Array.isArray(parsed.classes)) {
+        for (const cls of parsed.classes) {
+          // Create the class
+          const classRef = await addDoc(collection(db, 'users', user.uid, 'classes'), {
+            name: cls.name,
+            onDays: cls.onDays || []
           });
+
+          // Create the students for this class
+          if (cls.students && Array.isArray(cls.students)) {
+            for (const student of cls.students) {
+              const studentAttendance = cls.attendance?.[student.id] || {};
+              await addDoc(collection(db, 'users', user.uid, 'classes', classRef.id, 'students'), {
+                roll: student.roll,
+                attendance: studentAttendance
+              });
+            }
+          }
         }
       }
 
-      toast({ title: "Restore Successful", description: "Your cloud records have been updated." });
+      toast({ title: "Restore Successful", description: "All records have been synced to your account." });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Restore Failed", description: "Invalid backup file format." });
+      console.error(e);
+      toast({ variant: "destructive", title: "Restore Failed", description: "The backup file was invalid or corrupted." });
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -272,7 +284,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user,
       login,
       backup,
-      restore
+      restore,
+      isRestoring
     }}>
       {children}
     </AppContext.Provider>

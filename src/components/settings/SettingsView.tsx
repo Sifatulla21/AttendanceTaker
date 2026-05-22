@@ -1,23 +1,26 @@
+
 "use client"
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { useApp } from '@/lib/store';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Database, FileUp, Info, Activity } from 'lucide-react';
+import { Database, FileUp, Info, Activity, Loader2 } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 export function SettingsView() {
-  const { state, updateSettings, backup, restore } = useApp();
+  const { state, updateSettings, backup, restore, isRestoring } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const content = event.target?.result as string;
-        restore(content);
+        await restore(content);
+        if (fileInputRef.current) fileInputRef.current.value = '';
       };
       reader.readAsText(file);
     }
@@ -71,6 +74,7 @@ export function SettingsView() {
                 onClick={backup} 
                 variant="outline" 
                 className="w-full h-14 border-primary/20 bg-primary/5 hover:bg-primary/10 gap-2 font-bold"
+                disabled={isRestoring}
               >
                 <Database className="h-4 w-4" /> Backup to File
               </Button>
@@ -79,14 +83,22 @@ export function SettingsView() {
                 <input
                   type="file"
                   accept=".json"
+                  ref={fileInputRef}
                   onChange={handleFileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  className="hidden"
                 />
                 <Button 
                   variant="outline" 
+                  onClick={() => fileInputRef.current?.click()}
                   className="w-full h-14 border-destructive/20 bg-destructive/5 hover:bg-destructive/10 gap-2 font-bold"
+                  disabled={isRestoring}
                 >
-                  <FileUp className="h-4 w-4" /> Restore from File
+                  {isRestoring ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileUp className="h-4 w-4" />
+                  )}
+                  {isRestoring ? "Restoring..." : "Restore from File"}
                 </Button>
               </div>
             </div>

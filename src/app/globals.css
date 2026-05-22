@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -68,6 +69,7 @@
   left: 0;
   z-index: 10;
   background-color: hsl(var(--card)) !important;
+  opacity: 1 !important;
 }
 
 .sticky-row {
@@ -75,6 +77,7 @@
   top: 0;
   z-index: 20;
   background-color: hsl(var(--card)) !important;
+  opacity: 1 !important;
 }
 
 .sticky-both {
@@ -83,6 +86,7 @@
   top: 0;
   z-index: 30;
   background-color: hsl(var(--card)) !important;
+  opacity: 1 !important;
 }
 
 .cell-present {
