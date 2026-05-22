@@ -1,32 +1,36 @@
 
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Auth } from 'firebase/auth';
 import { Firestore } from 'firebase/firestore';
-import { initializeFirebase } from './index';
+import { Auth } from 'firebase/auth';
 
 interface FirebaseContextType {
-  app: FirebaseApp;
-  auth: Auth;
-  firestore: Firestore;
+  firebaseApp: FirebaseApp | null;
+  firestore: Firestore | null;
+  auth: Auth | null;
 }
 
-const FirebaseContext = createContext<FirebaseContextType | null>(null);
+const FirebaseContext = createContext<FirebaseContextType>({
+  firebaseApp: null,
+  firestore: null,
+  auth: null,
+});
 
-export function FirebaseProvider({ children }: { children: React.ReactNode }) {
-  const [services, setServices] = useState<FirebaseContextType | null>(null);
-
-  useEffect(() => {
-    const { app, auth, firestore } = initializeFirebase();
-    setServices({ app, auth, firestore });
-  }, []);
-
-  if (!services) return null;
-
+export function FirebaseProvider({
+  children,
+  firebaseApp,
+  firestore,
+  auth,
+}: {
+  children: React.ReactNode;
+  firebaseApp: FirebaseApp | null;
+  firestore: Firestore | null;
+  auth: Auth | null;
+}) {
   return (
-    <FirebaseContext.Provider value={services}>
+    <FirebaseContext.Provider value={{ firebaseApp, firestore, auth }}>
       {children}
     </FirebaseContext.Provider>
   );
@@ -34,6 +38,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
 export const useFirebase = () => {
   const context = useContext(FirebaseContext);
-  if (!context) throw new Error('useFirebase must be used within FirebaseProvider');
+  if (!context) {
+    // Return empty context rather than throwing to avoid SSR/prerender crashes
+    return { firebaseApp: null, firestore: null, auth: null };
+  }
   return context;
 };
+
+export const useFirebaseApp = () => useFirebase().firebaseApp;
+export const useFirestore = () => useFirebase().firestore;
+export const useAuth = () => useFirebase().auth;

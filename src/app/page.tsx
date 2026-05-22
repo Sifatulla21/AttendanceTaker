@@ -1,4 +1,7 @@
+
 "use client"
+
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { AppProvider, useApp } from '@/lib/store';
@@ -11,7 +14,7 @@ import { ShieldCheck, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 function AppContent() {
-  const { isAuthenticated, login, state } = useApp();
+  const { isAuthenticated, login } = useApp();
   const [activeTab, setActiveTab] = useState<'home' | 'history' | 'settings'>('home');
 
   if (!isAuthenticated) {

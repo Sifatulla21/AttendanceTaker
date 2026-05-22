@@ -1,71 +1,53 @@
 
 {
   "entities": {
-    "Class": {
-      "title": "Class",
-      "description": "A student group or subject class.",
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "User preferences and system-wide settings.",
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the class."
-        },
-        "userId": {
-          "type": "string",
-          "description": "The UID of the teacher who owns this class."
-        }
+        "vibration": { "type": "boolean", "description": "Whether haptic feedback is enabled." },
+        "fineRate": { "type": "number", "description": "Rate charged per absence." },
+        "theme": { "type": "string", "enum": ["light", "dark"], "description": "The UI theme preference." }
       },
-      "required": ["name", "userId"]
+      "required": ["vibration", "fineRate", "theme"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "A student group or section.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the class." },
+        "onDays": { "type": "array", "items": { "type": "string" }, "description": "List of dates (YYYY-MM-DD) marked as class days." }
+      },
+      "required": ["name", "onDays"]
     },
     "Student": {
       "title": "Student",
-      "description": "A student enrolled in a class.",
+      "description": "A student profile within a class.",
       "type": "object",
       "properties": {
-        "roll": {
-          "type": "number",
-          "description": "The student's unique roll number within the class."
-        }
+        "roll": { "type": "number", "description": "Student roll number." },
+        "attendance": { "type": "object", "description": "Mapping of date strings to 'present' or 'absent'." }
       },
-      "required": ["roll"]
-    },
-    "Attendance": {
-      "title": "Attendance",
-      "description": "Daily attendance record for a class.",
-      "type": "object",
-      "properties": {
-        "isOnDay": {
-          "type": "boolean",
-          "description": "Whether attendance was supposed to be taken on this day."
-        },
-        "records": {
-          "type": "object",
-          "description": "Map of roll numbers to attendance status.",
-          "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["Present", "Absent"]
-            }
-          }
-        }
-      }
+      "required": ["roll", "attendance"]
     }
   },
   "auth": {
     "providers": ["google.com"]
   },
   "firestore": {
-    "/classes/{classId}": {
-      "schema": "Class",
-      "description": "Root collection for classes."
+    "/users/{userId}/settings": {
+      "schema": "#/entities/AppSettings",
+      "description": "Individual user settings."
     },
-    "/classes/{classId}/students/{studentId}": {
-      "schema": "Student",
-      "description": "Sub-collection of students in a class."
+    "/users/{userId}/classes/{classId}": {
+      "schema": "#/entities/Class",
+      "description": "Classes created by the user."
     },
-    "/classes/{classId}/attendance/{date}": {
-      "schema": "Attendance",
-      "description": "Sub-collection for daily attendance logs."
+    "/users/{userId}/classes/{classId}/students/{studentId}": {
+      "schema": "#/entities/Student",
+      "description": "Students belonging to a specific class."
     }
   }
 }

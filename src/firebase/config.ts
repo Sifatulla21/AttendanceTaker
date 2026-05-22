@@ -1,9 +1,10 @@
+'use client';
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyBZMmF3A3gurEPM24yWqmo9g70B6NtOPAY",
-  authDomain: "demo-app.firebaseapp.com",
-  projectId: "demo-app",
-  storageBucket: "demo-app.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
+  apiKey: "AIzaSyAn44WLye-kg_e8UdtinRzDCUCa0I7N4Zc",
+  authDomain: "attendify-pro.firebaseapp.com",
+  projectId: "attendify-pro",
+  storageBucket: "attendify-pro.firebasestorage.app",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef"
 };

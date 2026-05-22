@@ -1,8 +1,33 @@
+
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { AppState, ClassData, AppSettings, Student } from './types';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  useUser, 
+  useFirestore, 
+  useAuth, 
+  useCollection, 
+  useDoc 
+} from '@/firebase';
+import { 
+  doc, 
+  setDoc, 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  updateDoc,
+  query,
+  where,
+  getDocs,
+  collectionGroup
+} from 'firebase/firestore';
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut 
+} from 'firebase/auth';
 
 interface AppContextType {
   state: AppState;
@@ -17,12 +42,11 @@ interface AppContextType {
   updateSettings: (settings: Partial<AppSettings>) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  user: any;
   login: () => void;
   backup: () => void;
   restore: (data: string) => void;
 }
-
-const STORAGE_KEY = 'attendify_pro_data';
 
 const defaultSettings: AppSettings = {
   vibration: true,
@@ -30,149 +54,148 @@ const defaultSettings: AppSettings = {
   theme: 'dark'
 };
 
-const initialState: AppState = {
-  classes: [],
-  selectedClassId: null,
-  settings: defaultSettings,
-};
-
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AppState>(initialState);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, loading: userLoading } = useUser();
+  const db = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
 
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+
+  // 1. Fetch User Settings
+  const settingsRef = useMemo(() => user && db ? doc(db, 'users', user.uid, 'settings', 'prefs') : null, [user, db]);
+  const { data: remoteSettings, loading: settingsLoading } = useDoc<AppSettings>(settingsRef);
+
+  // 2. Fetch Classes
+  const classesRef = useMemo(() => user && db ? collection(db, 'users', user.uid, 'classes') : null, [user, db]);
+  const { data: remoteClasses, loading: classesLoading } = useCollection<any>(classesRef);
+
+  // 3. Fetch Students for Selected Class
+  const studentsRef = useMemo(() => 
+    user && db && selectedClassId ? collection(db, 'users', user.uid, 'classes', selectedClassId, 'students') : null, 
+    [user, db, selectedClassId]
+  );
+  const { data: remoteStudents, loading: studentsLoading } = useCollection<any>(studentsRef);
+
+  // Auto-select first class if none selected
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const auth = localStorage.getItem('attendify_auth');
-    if (saved) {
-      try {
-        setState(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse saved state", e);
+    if (remoteClasses && remoteClasses.length > 0 && !selectedClassId) {
+      setSelectedClassId(remoteClasses[0].id);
+    }
+  }, [remoteClasses, selectedClassId]);
+
+  const state = useMemo((): AppState => {
+    const classes = (remoteClasses || []).map(c => {
+      // If this is the selected class, we enrich it with students and attendance
+      const isSelected = c.id === selectedClassId;
+      const students: Student[] = isSelected ? (remoteStudents || []).map(s => ({
+        id: s.id,
+        roll: s.roll
+      })) : [];
+
+      const attendance: Record<string, Record<string, 'present' | 'absent'>> = {};
+      if (isSelected && remoteStudents) {
+        remoteStudents.forEach(s => {
+          attendance[s.id] = s.attendance || {};
+        });
       }
-    }
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    }
-  }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+      return {
+        id: c.id,
+        name: c.name,
+        onDays: c.onDays || [],
+        students,
+        attendance
+      };
+    });
 
-  const login = () => {
-    setIsAuthenticated(true);
-    localStorage.setItem('attendify_auth', 'true');
-    toast({ title: "Welcome back!", description: "Signed in with Google" });
+    return {
+      classes,
+      selectedClassId,
+      settings: remoteSettings || defaultSettings
+    };
+  }, [remoteClasses, remoteSettings, selectedClassId, remoteStudents]);
+
+  const login = async () => {
+    if (!auth) return;
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+      toast({ title: "Welcome!", description: "Signed in with Google" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Login Failed", description: e.message });
+    }
   };
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('attendify_auth');
+  const logout = async () => {
+    if (!auth) return;
+    await signOut(auth);
     toast({ title: "Logged out", description: "Session ended safely." });
   };
 
   const addClass = (name: string) => {
-    const newClass: ClassData = {
-      id: Math.random().toString(36).substr(2, 9),
+    if (!user || !db) return;
+    const ref = collection(db, 'users', user.uid, 'classes');
+    addDoc(ref, {
       name,
-      students: [],
-      onDays: [],
-      attendance: {}
-    };
-    setState(prev => ({
-      ...prev,
-      classes: [...prev.classes, newClass],
-      selectedClassId: prev.selectedClassId || newClass.id
-    }));
-    toast({ title: "Class Created", description: `Added ${name} to your dashboard.` });
+      onDays: []
+    }).then(docRef => {
+      setSelectedClassId(docRef.id);
+      toast({ title: "Class Created", description: `Added ${name}.` });
+    });
   };
 
-  const deleteClass = (id: string) => {
-    setState(prev => {
-      const filteredClasses = prev.classes.filter(c => c.id !== id);
-      return {
-        ...prev,
-        classes: filteredClasses,
-        selectedClassId: prev.selectedClassId === id 
-          ? (filteredClasses[0]?.id || null) 
-          : prev.selectedClassId
-      };
-    });
-    toast({ title: "Class Deleted", description: "The class and its data were removed." });
+  const deleteClass = async (id: string) => {
+    if (!user || !db) return;
+    const ref = doc(db, 'users', user.uid, 'classes', id);
+    await deleteDoc(ref);
+    if (selectedClassId === id) setSelectedClassId(null);
+    toast({ title: "Class Deleted" });
   };
 
   const updateClass = (id: string, name: string) => {
-    setState(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => c.id === id ? { ...c, name } : c)
-    }));
-  };
-
-  const selectClass = (id: string) => {
-    setState(prev => ({ ...prev, selectedClassId: id }));
+    if (!user || !db) return;
+    const ref = doc(db, 'users', user.uid, 'classes', id);
+    updateDoc(ref, { name });
   };
 
   const addStudent = (roll: number) => {
-    if (!state.selectedClassId) return;
-    const newStudent: Student = {
-      id: Math.random().toString(36).substr(2, 9),
+    if (!user || !db || !selectedClassId) return;
+    const ref = collection(db, 'users', user.uid, 'classes', selectedClassId, 'students');
+    addDoc(ref, {
       roll,
-    };
-    setState(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => {
-        if (c.id === prev.selectedClassId) {
-          return {
-            ...c,
-            students: [...c.students, newStudent].sort((a, b) => a.roll - b.roll)
-          };
-        }
-        return c;
-      })
-    }));
+      attendance: {}
+    });
     toast({ title: "Student Added", description: `Roll ${roll} registered.` });
   };
 
   const deleteStudent = (studentId: string) => {
-    setState(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => {
-        if (c.id === prev.selectedClassId) {
-          return {
-            ...c,
-            students: c.students.filter(s => s.id !== studentId)
-          };
-        }
-        return c;
-      })
-    }));
+    if (!user || !db || !selectedClassId) return;
+    const ref = doc(db, 'users', user.uid, 'classes', selectedClassId, 'students', studentId);
+    deleteDoc(ref);
   };
 
   const toggleOnDay = (date: string) => {
-    if (!state.selectedClassId) return;
-    setState(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => {
-        if (c.id === prev.selectedClassId) {
-          const onDays = c.onDays.includes(date)
-            ? c.onDays.filter(d => d !== date)
-            : [...c.onDays, date];
-          return { ...c, onDays };
-        }
-        return c;
-      })
-    }));
+    if (!user || !db || !selectedClassId) return;
+    const cls = remoteClasses?.find(c => c.id === selectedClassId);
+    if (!cls) return;
+
+    const onDays = cls.onDays || [];
+    const newOnDays = onDays.includes(date)
+      ? onDays.filter((d: string) => d !== date)
+      : [...onDays, date];
+
+    const ref = doc(db, 'users', user.uid, 'classes', selectedClassId);
+    updateDoc(ref, { onDays: newOnDays });
   };
 
   const markAttendance = (studentId: string, date: string, status: 'present' | 'absent') => {
-    if (!state.selectedClassId) return;
+    if (!user || !db || !selectedClassId) return;
     
     // Haptic Feedback Logic
     if (state.settings.vibration && status === 'present') {
-      const cls = state.classes.find(c => c.id === state.selectedClassId);
+      const cls = state.classes.find(c => c.id === selectedClassId);
       if (cls) {
         const sortedOnDays = [...cls.onDays].sort();
         const currentIndex = sortedOnDays.indexOf(date);
@@ -188,22 +211,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    setState(prev => ({
-      ...prev,
-      classes: prev.classes.map(c => {
-        if (c.id === prev.selectedClassId) {
-          const attendance = { ...c.attendance };
-          if (!attendance[studentId]) attendance[studentId] = {};
-          attendance[studentId][date] = status;
-          return { ...c, attendance };
-        }
-        return c;
-      })
-    }));
+    const student = remoteStudents?.find(s => s.id === studentId);
+    if (!student) return;
+
+    const ref = doc(db, 'users', user.uid, 'classes', selectedClassId, 'students', studentId);
+    updateDoc(ref, {
+      [`attendance.${date}`]: status
+    });
   };
 
   const updateSettings = (settings: Partial<AppSettings>) => {
-    setState(prev => ({ ...prev, settings: { ...prev.settings, ...settings } }));
+    if (!user || !db) return;
+    const ref = doc(db, 'users', user.uid, 'settings', 'prefs');
+    setDoc(ref, { ...state.settings, ...settings }, { merge: true });
   };
 
   const backup = () => {
@@ -214,21 +234,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
-    toast({ title: "Backup Complete", description: "Settings and history saved to file." });
+    toast({ title: "Backup Complete" });
   };
 
-  const restore = (data: string) => {
-    try {
-      const parsed = JSON.parse(data);
-      if (parsed.classes && parsed.settings) {
-        setState(parsed);
-        toast({ title: "Restore Successful", description: "Data has been updated from backup." });
-      } else {
-        throw new Error("Invalid structure");
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Restore Failed", description: "Invalid backup file selected." });
-    }
+  const restore = async (data: string) => {
+    // Note: Restore is complex with Firestore. 
+    // This would require iterating and batch writing. 
+    // For MVP, we'll keep the toast warning but encourage cloud use.
+    toast({ variant: "destructive", title: "Cloud Sync Active", description: "Manual restore is disabled while cloud sync is active." });
   };
 
   return (
@@ -237,19 +250,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addClass,
       deleteClass,
       updateClass,
-      selectClass,
+      selectClass: setSelectedClassId,
       addStudent,
       deleteStudent,
       toggleOnDay,
       markAttendance,
       updateSettings,
       logout,
-      isAuthenticated,
+      isAuthenticated: !!user,
+      user,
       login,
       backup,
       restore
     }}>
-      {children}
+      {!userLoading && children}
     </AppContext.Provider>
   );
 }

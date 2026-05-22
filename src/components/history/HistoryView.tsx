@@ -1,9 +1,10 @@
+
 "use client"
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/lib/store';
-import { format, isSameMonth, parseISO, setMonth, setYear, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { Search, Download, Wallet, ChevronLeft, ChevronRight, GraduationCap, CalendarDays, CalendarRange } from 'lucide-react';
+import { format, parseISO, setMonth, setYear, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { Search, Download, Wallet, ChevronLeft, ChevronRight, GraduationCap, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
