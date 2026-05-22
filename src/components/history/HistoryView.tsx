@@ -3,8 +3,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/lib/store';
-import { format, parseISO, setMonth, setYear, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { Search, Download, Wallet, ChevronLeft, ChevronRight, GraduationCap, CalendarDays } from 'lucide-react';
+import { format, setMonth, setYear, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { Search, Download, Wallet, GraduationCap, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -23,6 +23,12 @@ const months = [
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 11 }, (_, i) => (currentYear - 5 + i).toString());
+
+// Custom date parsing to avoid timezone shifts
+function parseDateString(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
 
 export function HistoryView() {
   const { state, updateSettings, selectClass } = useApp();
@@ -53,7 +59,7 @@ export function HistoryView() {
 
     const onDaysInRange = selectedClass.onDays.filter(d => {
       try {
-        const dayDate = parseISO(d);
+        const dayDate = parseDateString(d);
         return isWithinInterval(dayDate, { start: rangeStart, end: rangeEnd });
       } catch (e) {
         return false;

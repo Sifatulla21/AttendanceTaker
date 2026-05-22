@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -83,6 +84,11 @@
   top: 0;
   z-index: 30;
   background-color: hsl(var(--card)) !important;
+}
+
+/* Ensure sticky columns have solid background to avoid transparency when scrolling */
+.sticky-col, .sticky-both {
+  @apply bg-card;
 }
 
 .cell-present {

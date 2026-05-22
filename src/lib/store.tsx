@@ -2,7 +2,7 @@
 "use client"
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { AppState, AppSettings, Student } from './types';
+import { AppState, AppSettings, Student, ClassData } from './types';
 import { useToast } from '@/hooks/use-toast';
 import { 
   useUser, 
@@ -227,8 +227,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toast({ title: "Backup Complete" });
   };
 
-  const restore = async (data: string) => {
-    toast({ variant: "destructive", title: "Cloud Sync Active", description: "Manual restore is disabled while cloud sync is active." });
+  const restore = async (dataStr: string) => {
+    if (!user || !db) return;
+    try {
+      const backupData = JSON.parse(dataStr) as AppState;
+      if (!backupData.classes || !Array.isArray(backupData.classes)) {
+        throw new Error("Invalid backup format: missing classes array.");
+      }
+
+      toast({ title: "Restoring...", description: "Updating your database records." });
+
+      // 1. Restore Settings
+      const sRef = doc(db, 'users', user.uid, 'settings', 'prefs');
+      await setDoc(sRef, backupData.settings || defaultSettings, { merge: true });
+
+      // 2. Restore Classes and their nested Students
+      for (const cls of backupData.classes) {
+        const cRef = doc(db, 'users', user.uid, 'classes', cls.id || Math.random().toString(36).substr(2, 9));
+        await setDoc(cRef, {
+          name: cls.name,
+          onDays: cls.onDays || []
+        }, { merge: true });
+
+        if (cls.students && Array.isArray(cls.students)) {
+          for (const student of cls.students) {
+            const stRef = doc(db, 'users', user.uid, 'classes', cRef.id, 'students', student.id || Math.random().toString(36).substr(2, 9));
+            const attendance = (cls.attendance && cls.attendance[student.id]) ? cls.attendance[student.id] : {};
+            await setDoc(stRef, {
+              roll: student.roll,
+              attendance: attendance
+            }, { merge: true });
+          }
+        }
+      }
+
+      toast({ title: "Restore Successful", description: "All data has been synced with the cloud." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Restore Failed", description: e.message });
+    }
   };
 
   return (
