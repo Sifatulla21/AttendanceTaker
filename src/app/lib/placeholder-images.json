@@ -1,0 +1,11 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-attendance",
+      "description": "Abstract attendance tracking visualization",
+      "imageUrl": "https://picsum.photos/seed/attendance1/1200/800",
+      "imageHint": "data analysis"
+    }
+  ]
+}

@@ -1,27 +1,12 @@
 
-import type {Metadata, Viewport} from 'next';
+import type { Metadata } from 'next';
 import './globals.css';
-import { FirebaseClientProvider } from '@/firebase';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from "@/components/ui/toaster";
+import { FirebaseProvider } from '@/firebase';
 
 export const metadata: Metadata = {
-  title: 'AttendSync Pro',
-  description: 'Advanced Student Attendance Manager',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'AttendSync Pro',
-  },
-};
-
-export const viewport: Viewport = {
-  themeColor: '#007D8A',
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  title: 'Attendance Flux | Modern Student Attendance Manager',
+  description: 'A production-ready, fully responsive Student Attendance Management system.',
 };
 
 export default function RootLayout({
@@ -34,16 +19,13 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased bg-background text-foreground min-h-screen">
-        <FirebaseClientProvider>
-          <div className="min-h-screen bg-background">
-            {children}
-          </div>
-          <FirebaseErrorListener />
+      <body className="font-body antialiased selection:bg-teal selection:text-white">
+        <FirebaseProvider>
+          {children}
           <Toaster />
-        </FirebaseClientProvider>
+        </FirebaseProvider>
       </body>
     </html>
   );

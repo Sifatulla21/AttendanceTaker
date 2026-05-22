@@ -1,319 +1,259 @@
 
-"use client"
+"use client";
 
-import { AttendanceHeader } from '@/components/attendance/AttendanceHeader';
-import { ClassSelector } from '@/components/attendance/ClassSelector';
-import { Navbar } from '@/components/layout/Navbar';
-import { MonthSelector } from '@/components/attendance/MonthSelector';
-import { useStore } from '@/lib/store';
-import { cn } from '@/lib/utils';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { AppShell } from '@/components/layout/AppShell';
+import { AuthProvider } from '@/hooks/use-auth';
+import { useAttendance } from '@/hooks/use-attendance';
 import { Button } from '@/components/ui/button';
+import { Search, Download, FileText, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, subMonths, addMonths } from 'date-fns';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Search, 
-  Download, 
-  ArrowRight, 
-  Users, 
-  Calendar as CalendarIcon,
-  TrendingUp,
-  AlertCircle,
-  Loader2
-} from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
-import { query, collection, where, doc } from 'firebase/firestore';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 
-export default function HistoryPage() {
-  const { user, loading: authLoading } = useUser();
-  const db = useFirestore();
-  const { selectedClassId, fineRate, hasHydrated } = useStore();
+function HistoryPage() {
+  const { 
+    classes, 
+    selectedClassId, 
+    setSelectedClassId, 
+    students, 
+    attendance, 
+    dayConfigs 
+  } = useAttendance();
   
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [searchRoll, setSearchRoll] = useState('');
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [fineRate, setFineRate] = useState(10);
+  const { toast } = useToast();
 
   useEffect(() => {
-    setStartDate(startOfMonth(new Date()));
-    setEndDate(endOfMonth(new Date()));
+    const settings = localStorage.getItem('flux_settings');
+    if (settings) {
+      const { fineRate: savedRate } = JSON.parse(settings);
+      if (savedRate) setFineRate(savedRate);
+    }
   }, []);
 
-  const classRef = useMemo(() => {
-    if (!user || !selectedClassId || !hasHydrated) return null;
-    return doc(db, 'users', user.uid, 'classes', selectedClassId);
-  }, [db, user, selectedClassId, hasHydrated]);
-  const { data: selectedClass, loading: classLoading } = useDoc<any>(classRef);
+  const selectedClass = classes.find(c => c.id === selectedClassId);
 
-  const attendanceQuery = useMemo(() => {
-    if (!user || !selectedClassId || !hasHydrated) return null;
-    return query(collection(db, 'users', user.uid, 'attendance'), where('classId', '==', selectedClassId));
-  }, [db, user, selectedClassId, hasHydrated]);
-  const { data: attendanceDocs, loading: attendanceLoading } = useCollection<any>(attendanceQuery);
+  const totalOnDays = Object.keys(dayConfigs).filter(k => {
+    const d = new Date(k);
+    return dayConfigs[k] && 
+           d.getMonth() === currentDate.getMonth() && 
+           d.getFullYear() === currentDate.getFullYear();
+  }).length;
 
-  const onDaysQuery = useMemo(() => {
-    if (!user || !selectedClassId || !hasHydrated) return null;
-    return query(collection(db, 'users', user.uid, 'onDays'), where('classId', '==', selectedClassId));
-  }, [db, user, selectedClassId, hasHydrated]);
-  const { data: onDaysDocs, loading: onDaysLoading } = useCollection<any>(onDaysQuery);
+  const handleSearch = () => {
+    if (!searchRoll) return;
+    setIsSearchActive(true);
+  };
 
-  const classAttendance = useMemo(() => {
-    const map: any = {};
-    attendanceDocs?.forEach(doc => { map[doc.dateKey] = doc.data; });
-    return map;
-  }, [attendanceDocs]);
-
-  const classOnDays = useMemo(() => {
-    const map: any = {};
-    onDaysDocs?.forEach(doc => { map[doc.dateKey] = true; });
-    return map;
-  }, [onDaysDocs]);
-
-  const rangeDays = useMemo(() => {
-    if (!startDate || !endDate) return [];
-    try {
-      return eachDayOfInterval({ start: startOfMonth(startDate), end: endOfMonth(endDate) });
-    } catch (e) { return []; }
-  }, [startDate, endDate]);
-
-  const rangeOnDays = useMemo(() => {
-    return rangeDays.filter(day => classOnDays[format(day, 'yyyy-MM-dd')]);
-  }, [rangeDays, classOnDays]);
-
-  const rangeReportData = useMemo(() => {
-    if (!selectedClass) return [];
-    return (selectedClass.students || []).map((student: any) => {
-      const absences = rangeOnDays.filter(day => {
-        const dateKey = format(day, 'yyyy-MM-dd');
-        return !classAttendance[dateKey]?.[student.roll];
-      }).length;
-      return { roll: student.roll, absentDays: absences, totalFine: absences * fineRate };
-    }).sort((a: any, b: any) => a.roll - b.roll);
-  }, [selectedClass, rangeOnDays, classAttendance, fineRate]);
-
-  const studentInsight = useMemo(() => {
-    if (!searchRoll || !selectedClass || !startDate || !endDate) return null;
-    const roll = parseInt(searchRoll);
-    if (isNaN(roll)) return null;
-
-    const absences = rangeOnDays.filter(day => {
-      const dateKey = format(day, 'yyyy-MM-dd');
-      return !classAttendance[dateKey]?.[roll];
-    });
-
-    return {
-      roll,
-      totalWorking: rangeOnDays.length,
-      absentDays: absences.length,
-      fine: absences.length * fineRate,
-      history: rangeOnDays.map(day => {
-        const dateKey = format(day, 'yyyy-MM-dd');
-        return { date: day, status: !!classAttendance[dateKey]?.[roll] };
-      }).sort((a, b) => b.date.getTime() - a.date.getTime())
-    };
-  }, [searchRoll, rangeOnDays, classAttendance, fineRate, selectedClass, startDate, endDate]);
-
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      // Dismiss keyboard on mobile
-      (e.target as HTMLInputElement).blur();
+  const handleFineUpdate = () => {
+    const rate = prompt('Enter default global fine rate per absence:', fineRate.toString());
+    if (rate && !isNaN(parseInt(rate))) {
+      const newRate = parseInt(rate);
+      setFineRate(newRate);
+      const settings = JSON.parse(localStorage.getItem('flux_settings') || '{}');
+      localStorage.setItem('flux_settings', JSON.stringify({ ...settings, fineRate: newRate }));
+      toast({ title: `Fine rate set to ${newRate} BDT` });
     }
   };
 
-  const downloadPDF = () => {
-    if (!selectedClass || !startDate || !endDate) return;
-    const doc = new jsPDF();
-    const period = `${format(startDate, 'MMM yyyy')} - ${format(endDate, 'MMM yyyy')}`;
-    doc.setFontSize(22);
-    doc.setTextColor(0, 125, 138); 
-    doc.text(`Academic Attendance Summary`, 14, 20);
-    doc.setFontSize(12);
-    doc.setTextColor(100);
-    doc.text(`Class: ${selectedClass.name}`, 14, 32);
-    doc.text(`Range: ${period}`, 14, 39);
-    doc.text(`Total Working Days: ${rangeOnDays.length}`, 14, 46);
-    autoTable(doc, {
-      head: [['Roll Number', 'Days Absent', 'Total Fine (BDT)']],
-      body: rangeReportData.map((d: any) => [d.roll, d.absentDays, d.totalFine]),
-      startY: 55,
-      styles: { font: 'helvetica', fontSize: 10 },
-      headStyles: { fillColor: [0, 125, 138], textColor: 255 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
+  const exportCSV = () => {
+    if (!students.length) return;
+    
+    let csv = "Roll,Total Absences,Fine (BDT)\n";
+    students.forEach(s => {
+      let absences = 0;
+      Object.keys(dayConfigs).forEach(date => {
+        if (dayConfigs[date] && attendance[date]?.[s.roll.toString()] === 'Absent') {
+          absences++;
+        }
+      });
+      csv += `${s.roll},${absences},${absences * fineRate}\n`;
     });
-    doc.save(`Summary_${selectedClass.name}_${format(startDate, 'yyyyMM')}.pdf`);
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `Attendance_Report_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast({ title: "Report downloaded" });
   };
 
-  if (authLoading || !hasHydrated || !startDate || !endDate) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="font-headline italic text-muted-foreground">Fetching Records...</p>
-      </div>
-    );
-  }
+  const searchedStudent = students.find(s => s.roll === parseInt(searchRoll));
+  
+  const getSearchedData = () => {
+    if (!searchedStudent) return null;
+    let absences = 0;
+    Object.keys(dayConfigs).forEach(date => {
+      if (dayConfigs[date] && attendance[date]?.[searchedStudent.roll.toString()] === 'Absent') {
+        absences++;
+      }
+    });
+    return { absences, fine: absences * fineRate };
+  };
 
-  if (!user) return <div className="p-10 text-center font-headline">Please login to view history.</div>;
+  const searchData = getSearchedData();
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="flex flex-col min-h-screen bg-background pb-24 md:pl-64">
-        <div className="max-w-7xl mx-auto w-full px-4 md:px-12 py-8" key={user.uid}>
-          <AttendanceHeader title="History & Reports" />
-          
-          <div className="space-y-8">
-            <ClassSelector showAddButton={false} />
+    <AppShell>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Label className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Class</Label>
+            <select 
+              value={selectedClassId || ''} 
+              onChange={(e) => setSelectedClassId(e.target.value)}
+              className="bg-card border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-teal"
+            >
+              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
 
-            {!selectedClassId ? (
-              <div className="text-center text-muted-foreground font-headline p-20 bg-card rounded-[3rem] border-2 border-dashed border-muted-foreground/10">
-                <Users className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                <p className="text-2xl">Select a class to access records</p>
-              </div>
-            ) : classLoading || !selectedClass ? (
-              <div className="text-center p-20 animate-pulse font-headline italic">Syncing with Registry...</div>
-            ) : (
-              <div className="space-y-10">
-                <div className="bg-card p-6 md:p-10 rounded-[3rem] border shadow-xl space-y-8">
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="space-y-1">
-                      <h2 className="text-3xl font-headline font-bold text-foreground italic flex items-center gap-3">
-                        <CalendarIcon className="h-8 w-8 text-primary" /> Range Selector
-                      </h2>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-center gap-4 bg-muted/30 p-4 rounded-3xl border">
-                      <MonthSelector currentDate={startDate} onDateChange={setStartDate} />
-                      <ArrowRight className="hidden sm:block h-6 w-6 text-muted-foreground" />
-                      <MonthSelector currentDate={endDate} onDateChange={setEndDate} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-primary/5 p-6 rounded-2xl border border-primary/10 text-center">
-                      <span className="text-[10px] uppercase font-bold text-primary block mb-1">Period</span>
-                      <p className="text-xl font-technical font-bold">{format(startDate, 'MMM yy')} - {format(endDate, 'MMM yy')}</p>
-                    </div>
-                    <div className="bg-primary p-6 rounded-2xl text-primary-foreground text-center shadow-lg">
-                      <span className="text-[10px] uppercase font-bold opacity-80 block mb-1">Working Days</span>
-                      <p className="text-3xl font-technical font-bold">{rangeOnDays.length}</p>
-                    </div>
-                    <Button onClick={downloadPDF} className="h-full bg-secondary hover:bg-secondary/90 text-secondary-foreground rounded-2xl font-headline text-xl shadow-lg transition-transform active:scale-95">
-                      <Download className="h-6 w-6 mr-3" /> Download PDF
-                    </Button>
-                  </div>
-                </div>
-
-                <Tabs defaultValue="summary" className="space-y-6">
-                  <TabsList className="bg-muted/50 p-1 rounded-2xl h-16 w-full lg:w-auto grid grid-cols-2 lg:flex gap-1 border">
-                    <TabsTrigger value="summary" className="rounded-xl h-full font-headline text-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      <TrendingUp className="h-4 w-4 mr-2" /> Class Summary
-                    </TabsTrigger>
-                    <TabsTrigger value="individual" className="rounded-xl h-full font-headline text-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                      <Search className="h-4 w-4 mr-2" /> Student Insight
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="summary" className="space-y-6">
-                    <div className="rounded-[2.5rem] border bg-card shadow-2xl overflow-hidden">
-                      <div className="p-8 border-b bg-muted/5"><h3 className="text-2xl font-headline italic">Class Attendance Log</h3></div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left font-technical text-lg border-separate border-spacing-0">
-                          <thead className="sticky top-0 bg-card z-20">
-                            <tr className="border-b bg-muted/20">
-                              <th className="p-6 border-b">Roll</th>
-                              <th className="p-6 text-center border-b">Absences</th>
-                              <th className="p-6 text-right border-b">Total Fine</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rangeReportData.map((item: any) => (
-                              <tr key={item.roll} className="border-b last:border-0 hover:bg-muted/5 transition-colors">
-                                <td className="p-6 font-bold text-2xl">#{item.roll}</td>
-                                <td className="p-6 text-center text-xl">{item.absentDays} Days</td>
-                                <td className="p-6 text-right font-bold text-2xl text-status-absent">{item.totalFine} BDT</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot className="sticky bottom-0 bg-primary/5 font-bold border-t-2 z-20">
-                            <tr>
-                              <td className="p-6">Average Absences</td>
-                              <td className="p-6 text-center">
-                                {rangeReportData.length > 0 
-                                  ? (rangeReportData.reduce((acc, cur) => acc + cur.absentDays, 0) / rangeReportData.length).toFixed(1) 
-                                  : 0} Days
-                              </td>
-                              <td className="p-6 text-right text-status-absent">
-                                {rangeReportData.reduce((acc, cur) => acc + cur.totalFine, 0).toLocaleString()} BDT
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="individual" className="space-y-6">
-                    <div className="bg-card p-6 md:p-8 rounded-[2.5rem] border shadow-lg space-y-6">
-                      <div className="relative">
-                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
-                        <Input type="number" placeholder="Roll Number (e.g. 101)" value={searchRoll} onChange={(e) => setSearchRoll(e.target.value)} onKeyDown={handleSearchKeyDown} className="pl-14 bg-muted/30 rounded-2xl border-none h-16 font-technical text-2xl" />
-                      </div>
-                      {studentInsight ? (
-                        <div className="space-y-6">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="bg-primary text-primary-foreground p-6 rounded-2xl shadow-md">
-                              <span className="text-[10px] uppercase font-bold opacity-70 block">Student</span>
-                              <p className="text-3xl font-technical font-bold">#{studentInsight.roll}</p>
-                            </div>
-                            <div className="bg-secondary text-secondary-foreground p-6 rounded-2xl shadow-md">
-                              <span className="text-[10px] uppercase font-bold opacity-70 block">Absences</span>
-                              <p className="text-3xl font-technical font-bold">{studentInsight.absentDays}</p>
-                            </div>
-                            <div className="bg-destructive text-destructive-foreground p-6 rounded-2xl shadow-md">
-                              <span className="text-[10px] uppercase font-bold opacity-70 block">Fine (BDT)</span>
-                              <p className="text-3xl font-technical font-bold">{studentInsight.fine}</p>
-                            </div>
-                            <div className="bg-muted/50 p-6 rounded-2xl border">
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Rate</span>
-                              <p className="text-3xl font-technical font-bold">{studentInsight.totalWorking > 0 ? Math.round(((studentInsight.totalWorking - studentInsight.absentDays) / studentInsight.totalWorking) * 100) : 0}%</p>
-                            </div>
-                          </div>
-                          <div className="rounded-2xl border overflow-hidden max-h-[400px] overflow-y-auto scrollbar-hide">
-                            <table className="w-full text-left font-technical border-separate border-spacing-0">
-                              <thead className="sticky top-0 bg-card z-10">
-                                <tr className="border-b">
-                                  <th className="p-4 border-b">Date</th>
-                                  <th className="p-4 border-b">Status</th>
-                                  <th className="p-4 text-right border-b">Penalty</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {studentInsight.history.map((record, i) => (
-                                  <tr key={i} className={cn("border-b last:border-0", !record.status && "bg-status-absent/5")}>
-                                    <td className="p-4 font-bold">{format(record.date, 'eee, MMM do')}</td>
-                                    <td className="p-4">
-                                      <span className={cn("px-3 py-1 rounded-full text-[10px] font-bold", record.status ? "bg-status-present/20 text-status-present" : "bg-status-absent/20 text-status-absent")}>
-                                        {record.status ? "PRESENT" : "ABSENT"}
-                                      </span>
-                                    </td>
-                                    <td className="p-4 text-right font-bold text-destructive">{!record.status ? `${fineRate} BDT` : "-"}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-20 bg-muted/10 rounded-3xl border border-dashed"><AlertCircle className="h-10 w-10 mx-auto mb-4 text-muted-foreground/30" /><p className="font-headline text-muted-foreground">Search by Roll for logs</p></div>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            )}
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Input 
+              placeholder="Search by Roll" 
+              value={searchRoll} 
+              onChange={(e) => setSearchRoll(e.target.value)}
+              className="flex-1 bg-card"
+            />
+            <Button onClick={handleSearch} className="bg-teal text-white">
+              <Search className="w-4 h-4 mr-2" /> Search
+            </Button>
           </div>
         </div>
-      </main>
-    </div>
+
+        {isSearchActive && searchRoll && (
+          <div className="bg-card border-2 border-teal/30 p-6 rounded-2xl animate-in zoom-in-95 duration-300 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-2">
+              <Button variant="ghost" size="icon" onClick={() => setIsSearchActive(false)}><X className="w-4 h-4" /></Button>
+            </div>
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <span className="text-teal">Search Results:</span> Roll {searchRoll}
+            </h2>
+            {searchedStudent ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-secondary/50 p-4 rounded-xl text-center">
+                  <div className="text-xs text-muted-foreground uppercase mb-1">Total Absences</div>
+                  <div className="text-3xl font-bold text-coral">{searchData?.absences}</div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-secondary/50 p-4 rounded-xl text-center">
+                    <div className="text-xs text-muted-foreground uppercase mb-1">Cumulative Fine</div>
+                    <div className="text-3xl font-bold text-amber">{searchData?.fine} BDT</div>
+                  </div>
+                </div>
+                <div className="bg-secondary/50 p-4 rounded-xl text-center">
+                  <div className="text-xs text-muted-foreground uppercase mb-1">Status</div>
+                  <div className="text-3xl font-bold text-teal">Active</div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No student found with this roll number.</p>
+            )}
+          </div>
+        )}
+
+        <div 
+          onClick={handleFineUpdate}
+          className="bg-amber p-4 rounded-2xl flex items-center justify-between cursor-pointer hover:scale-[1.01] transition-transform shadow-lg shadow-amber/10"
+        >
+          <div className="flex items-center gap-3 font-bold text-amber-foreground">
+            <div className="bg-amber-foreground/10 p-2 rounded-lg"><Download className="w-5 h-5" /></div>
+            <span>Fine: {fineRate} BDT</span>
+          </div>
+          <span className="text-xs uppercase font-bold text-amber-foreground/60">Click to change rate</span>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <h3 className="font-bold text-lg">{format(currentDate, 'MMMM yyyy')}</h3>
+              <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex gap-2">
+               <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="border-teal text-teal hover:bg-teal hover:text-white">
+                    <FileText className="w-4 h-4 mr-2" /> Range Report
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md bg-card">
+                  <DialogHeader><DialogTitle>Advanced Multi-Month Report</DialogTitle></DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <p className="text-sm text-muted-foreground">Select range for detailed absence audit.</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><Label>Start Date</Label><Input type="date" /></div>
+                      <div><Label>End Date</Label><Input type="date" /></div>
+                    </div>
+                    <Button className="w-full bg-teal" onClick={exportCSV}>Generate & Download CSV</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="border rounded-2xl overflow-hidden bg-card">
+            <Table>
+              <TableHeader className="bg-secondary/50">
+                <TableRow>
+                  <TableHead className="w-[100px]">Roll</TableHead>
+                  <TableHead>Total Present</TableHead>
+                  <TableHead>Total Absent</TableHead>
+                  <TableHead className="text-right">Est. Fine</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {students.map((student) => {
+                  let present = 0, absent = 0;
+                  Object.keys(dayConfigs).forEach(date => {
+                    const d = new Date(date);
+                    if (dayConfigs[date] && d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear()) {
+                      const st = attendance[date]?.[student.roll.toString()];
+                      if (st === 'Present') present++;
+                      else if (st === 'Absent') absent++;
+                    }
+                  });
+                  return (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-bold text-teal">{student.roll}</TableCell>
+                      <TableCell className="text-emerald font-semibold">{present}</TableCell>
+                      <TableCell className="text-coral font-semibold">{absent}</TableCell>
+                      <TableCell className="text-right font-bold text-amber">{absent * fineRate} BDT</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="text-sm font-medium text-muted-foreground text-center">
+            Total On Days in {format(currentDate, 'MMMM')}: <span className="text-teal">{totalOnDays}</span>
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+export default function HistoryWrapper() {
+  return (
+    <AuthProvider>
+      <HistoryPage />
+    </AuthProvider>
   );
 }

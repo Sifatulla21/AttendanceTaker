@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,53 +6,46 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 0 0% 13%;
+    --foreground: 0 0% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 13%;
+    --card-foreground: 0 0% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 13%;
+    --popover-foreground: 0 0% 10%;
     --primary: 185 100% 27%; /* #007D8A */
-    --primary-foreground: 0 0% 98%;
-    --secondary: 40 91% 66%; /* #F7C358 */
-    --secondary-foreground: 0 0% 13%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 185 100% 95%;
-    --accent-foreground: 185 100% 27%;
-    --destructive: 0 79% 65%; /* #EC5E5E */
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 41 91% 66%; /* #F7C358 */
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 80% 65%; /* #EC5E5E */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 89%;
+    --input: 0 0% 89%;
     --ring: 185 100% 27%;
     --radius: 0.75rem;
-
-    --status-present: 140 52% 55%; /* #50C878 */
-    --status-absent: 0 100% 65%; /* #FF4B4B */
   }
-
   .dark {
     --background: 0 0% 4%; /* #0A0A0A */
-    --foreground: 0 0% 88%; /* #E0E0E0 */
-    --card: 0 0% 8%; /* #141414 */
-    --card-foreground: 0 0% 88%;
-    --popover: 0 0% 6%;
-    --popover-foreground: 0 0% 88%;
-    --primary: 185 100% 27%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 40 91% 66%;
-    --secondary-foreground: 0 0% 13%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 10%; /* #1A1A1A */
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 185 100% 27%; /* #007D8A */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 12%; /* #1F1F1F */
+    --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 185 25% 15%;
-    --accent-foreground: 0 0% 88%;
-    --destructive: 0 79% 65%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 41 91% 66%; /* #F7C358 */
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 80% 65%; /* #EC5E5E */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
     --ring: 185 100% 27%;
-    
-    --status-present: 140 52% 55%;
-    --status-absent: 0 100% 65%;
   }
 }
 
@@ -60,47 +54,50 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    -webkit-tap-highlight-color: transparent;
+    @apply bg-background text-foreground font-body antialiased;
   }
 }
 
-@layer utilities {
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+/* Custom styles for the sticky matrix */
+.attendance-matrix-container {
+  overflow: auto;
+  position: relative;
+  max-height: calc(100vh - 280px);
 }
 
-h1, h2, h3, .font-headline {
-  font-family: 'Alegreya', serif;
-}
-
-.font-technical {
-  font-family: 'PT Sans', sans-serif;
-}
-
-.sticky-column {
+.sticky-col {
   position: sticky;
   left: 0;
-  z-index: 40;
+  z-index: 10;
   @apply bg-card;
 }
 
-.sticky-header {
+.sticky-row {
   position: sticky;
   top: 0;
-  z-index: 50;
-  @apply bg-card;
+  z-index: 20;
+  @apply bg-secondary;
 }
 
-.on-day-off {
-  background-color: rgba(236, 94, 94, 0.08);
+.sticky-row-col {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  @apply bg-secondary;
 }
 
-.overscroll-none {
-  overscroll-behavior: none;
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/40;
 }

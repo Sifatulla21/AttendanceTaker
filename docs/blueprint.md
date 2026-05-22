@@ -1,19 +1,21 @@
-# **App Name**: AttendSync Pro
+# **App Name**: Attendance Flux
 
 ## Core Features:
 
-- Classroom Dynamics Engine: Create and manage multiple student rosters and classes with numeric roll identification and automated sorting.
-- Sticky Attendance Grid: Real-time interactive matrix with fixed student rolls and date headers. Supports dynamic locking for non-school days.
-- Contextual Vibration Logic: A refined UI feedback system that triggers vibration when a previously absent student is marked present.
-- Auto-Calculated Fine Reports: Automatically generates financial penalties and absence tallies per student based on configurable daily fine rates.
-- Attendance Intelligence Tool: Uses AI as a tool to analyze month-over-month trends and predict potential attendance drop-offs for specific rolls.
-- Historical Archive Search: Searchable read-only records with filtering for specific months and individual student presence logs.
-- Persistent Cloud Sync: Ensures all class data, fine rates, and attendance logs are securely stored and synced across sessions.
+- Google Cloud Sync: Persistent multi-device data synchronization utilizing Google Auth and Firestore to secure individual user records.
+- Interactive Matrix Grid: A high-performance responsive attendance board with sticky axis headers for Roll numbers and dates.
+- Contextual Logic Unlocking: Dynamic toggle system that activates specific day columns only when set to an 'On-Day' status.
+- AI Engagement Auditor: A generative AI tool providing natural language summaries and predictive trends of student attendance behaviors.
+- Aggregate Reporting Suite: Custom date-range querying for cumulative absentee logs and automatic generation of downloadable CSV reports.
+- Intelligent Haptic Response: Adaptive feedback engine that triggers a device vibration tool if a student was marked absent on their prior valid date.
+- Unified Backup Portal: Client-side hybrid safety bridge allowing users to compile and restore system data using local JSON templates.
 
 ## Style Guidelines:
 
-- The palette is anchored in high-contrast professional dark tones: Background #0A0A0A (Deep Charcoal), Primary #007D8A (Active Deep Teal), and Accent #F7C358 (Amber Gold) for specific headers and fines.
-- For a refined but human touch, 'Alegreya' is recommended for literary-style headings and 'PT Sans' for technical table data and roll numbers.
-- Implement a three-tab bottom navigation (Home, History, Settings) featuring sticky columns for student roll numbers and sticky row headers for dates to ensure visibility during vertical or horizontal scrolling.
-- Transition feedback includes standard iOS/Android style toggle animations for vibration settings and modal pop-ups for student additions and fine rate overrides.
-- Custom SVG iconography for Sun/Moon toggles, checkmarks, and information icons, utilizing Emerald #50C878 and Bold Red #FF4B4B for status visibility.
+- Base Theme: High-contrast Dark Mode utilizing Pure Charcoal (#0A0A0A) for depth and Off-Black (#1A1A1A) for surface layers.
+- Interactive Primary: A sophisticated and high-vibe Dynamic Teal (#007D8A) serves as the primary action color.
+- Semantic Palette: Active highlights in Amber-Gold (#F7C358) and critical state deletions in Coral Red (#EC5E5E).
+- Typography: The primary recommended font is 'Poppins' for a precise, geometric, and contemporary avant-garde visual style.
+- Responsive Freeze Layout: Implements a horizontally scrollable sequence of active rounded tokens and sticky grid constraints.
+- Tactile Feedback: Haptic triggers at the hardware layer and subtle opacity transitions for UI modals and alert lifecycles.
+- Icon System: A minimal Sun and Moon toggle system paired with rounded utility icons for navigating class-specific controls.

@@ -1,4 +1,4 @@
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/attendance-trend-summary-flow.ts';
+import '@/ai/flows/student-attendance-summary.ts';
