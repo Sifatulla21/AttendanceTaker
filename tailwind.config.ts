@@ -1,4 +1,3 @@
-
 import type {Config} from 'tailwindcss';
 
 export default {
@@ -11,8 +10,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Poppins', 'sans-serif'],
-        headline: ['Poppins', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+        headline: ['Alegreya', 'serif'],
         code: ['monospace'],
       },
       colors: {
@@ -66,22 +65,6 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
-        teal: {
-          DEFAULT: '#007D8A',
-          foreground: '#FFFFFF',
-        },
-        amber: {
-          DEFAULT: '#F7C358',
-          foreground: '#000000',
-        },
-        coral: {
-          DEFAULT: '#EC5E5E',
-          foreground: '#FFFFFF',
-        },
-        emerald: {
-          DEFAULT: '#50C878',
-          foreground: '#FFFFFF',
-        }
       },
       borderRadius: {
         lg: 'var(--radius)',

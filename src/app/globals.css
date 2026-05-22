@@ -1,51 +1,50 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 10%;
+    --background: 195 20% 98%;
+    --foreground: 195 50% 5%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 195 50% 5%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
-    --primary: 185 100% 27%; /* #007D8A */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 10%;
-    --muted: 0 0% 92%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 41 91% 66%; /* #F7C358 */
-    --accent-foreground: 0 0% 10%;
-    --destructive: 0 80% 65%; /* #EC5E5E */
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 89%;
-    --input: 0 0% 89%;
-    --ring: 185 100% 27%;
+    --popover-foreground: 195 50% 5%;
+    --primary: 186 100% 27%;
+    --primary-foreground: 186 10% 98%;
+    --secondary: 195 10% 90%;
+    --secondary-foreground: 195 50% 10%;
+    --muted: 195 10% 94%;
+    --muted-foreground: 195 10% 40%;
+    --accent: 186 100% 27%;
+    --accent-foreground: 186 10% 98%;
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 195 10% 88%;
+    --input: 195 10% 88%;
+    --ring: 186 100% 27%;
     --radius: 0.75rem;
   }
   .dark {
-    --background: 0 0% 4%; /* #0A0A0A */
-    --foreground: 0 0% 98%;
-    --card: 0 0% 10%; /* #1A1A1A */
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 185 100% 27%; /* #007D8A */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 12%; /* #1F1F1F */
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 65%;
-    --accent: 41 91% 66%; /* #F7C358 */
-    --accent-foreground: 0 0% 10%;
-    --destructive: 0 80% 65%; /* #EC5E5E */
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 185 100% 27%;
+    --background: 195 20% 5%;
+    --foreground: 195 10% 98%;
+    --card: 195 15% 10%;
+    --card-foreground: 195 10% 98%;
+    --popover: 195 15% 10%;
+    --popover-foreground: 195 10% 98%;
+    --primary: 186 100% 27%;
+    --primary-foreground: 186 10% 98%;
+    --secondary: 195 10% 15%;
+    --secondary-foreground: 195 10% 98%;
+    --muted: 195 10% 15%;
+    --muted-foreground: 195 10% 65%;
+    --accent: 186 100% 27%;
+    --accent-foreground: 186 10% 98%;
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 195 10% 15%;
+    --input: 195 10% 15%;
+    --ring: 186 100% 27%;
   }
 }
 
@@ -54,50 +53,66 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-body antialiased;
+    @apply bg-background text-foreground;
   }
 }
 
-/* Custom styles for the sticky matrix */
-.attendance-matrix-container {
+/* Custom styles for the attendance grid */
+.attendance-grid-container {
   overflow: auto;
-  position: relative;
-  max-height: calc(100vh - 280px);
+  max-height: calc(100vh - 350px);
 }
 
 .sticky-col {
-  position: sticky;
+  position: sticky !important;
   left: 0;
   z-index: 10;
-  @apply bg-card;
+  background-color: hsl(var(--card)) !important;
 }
 
 .sticky-row {
-  position: sticky;
+  position: sticky !important;
   top: 0;
   z-index: 20;
-  @apply bg-secondary;
+  background-color: hsl(var(--card)) !important;
 }
 
-.sticky-row-col {
-  position: sticky;
-  top: 0;
+.sticky-both {
+  position: sticky !important;
   left: 0;
+  top: 0;
   z-index: 30;
-  @apply bg-secondary;
+  background-color: hsl(var(--card)) !important;
 }
 
-/* Custom scrollbars */
+.cell-present {
+  background-color: #50C878 !important;
+  color: white !important;
+}
+
+.cell-absent {
+  background-color: #FF4B4B !important;
+  color: white !important;
+}
+
+.cell-off-day {
+  background-color: rgba(236, 94, 94, 0.1) !important;
+  pointer-events: none;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  @apply bg-background;
 }
+
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/20 rounded-full;
+  @apply bg-border rounded-full;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/40;
+  @apply bg-muted-foreground;
 }

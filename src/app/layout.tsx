@@ -1,12 +1,10 @@
-
-import type { Metadata } from 'next';
+import type {Metadata} from 'next';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
-import { FirebaseProvider } from '@/firebase';
+import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'Attendance Flux | Modern Student Attendance Manager',
-  description: 'A production-ready, fully responsive Student Attendance Management system.',
+  title: 'Attendify Pro | Student Attendance Manager',
+  description: 'Production-ready attendance management with AI insights.',
 };
 
 export default function RootLayout({
@@ -15,17 +13,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased selection:bg-teal selection:text-white">
-        <FirebaseProvider>
-          {children}
-          <Toaster />
-        </FirebaseProvider>
+      <body className="font-body antialiased bg-background text-foreground overflow-x-hidden min-h-screen">
+        {children}
+        <Toaster />
       </body>
     </html>
   );

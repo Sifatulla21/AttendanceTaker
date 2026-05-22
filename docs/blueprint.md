@@ -1,21 +1,21 @@
-# **App Name**: Attendance Flux
+# **App Name**: Attendify Pro
 
 ## Core Features:
 
-- Google Cloud Sync: Persistent multi-device data synchronization utilizing Google Auth and Firestore to secure individual user records.
-- Interactive Matrix Grid: A high-performance responsive attendance board with sticky axis headers for Roll numbers and dates.
-- Contextual Logic Unlocking: Dynamic toggle system that activates specific day columns only when set to an 'On-Day' status.
-- AI Engagement Auditor: A generative AI tool providing natural language summaries and predictive trends of student attendance behaviors.
-- Aggregate Reporting Suite: Custom date-range querying for cumulative absentee logs and automatic generation of downloadable CSV reports.
-- Intelligent Haptic Response: Adaptive feedback engine that triggers a device vibration tool if a student was marked absent on their prior valid date.
-- Unified Backup Portal: Client-side hybrid safety bridge allowing users to compile and restore system data using local JSON templates.
+- Biometric-Linked Google Authentication: Secure sign-in with Google isolation, ensuring attendance records are bound strictly to the user's unique profile with persistence across devices.
+- Interactive Matrix Attendance Engine: Dynamic roll-based grid with sticky headers and month navigation. Includes a toggle to activate/deactivate 'On Days' for restricted data entry.
+- Cloud Synchronized Registry: Real-time storage of classes, student records, and attendance logs utilizing a scalable cloud database.
+- Multi-Month Analytic Reporting: Generates aggregate statistics across custom date ranges, calculating absence totals and cumulative fine penalties for direct CSV export.
+- AI Attendance Predictor Tool: An AI tool that analyzes historical attendance patterns to predict at-risk students and recommend optimal 'On Day' scheduling to maximize class participation.
+- Haptic Interaction System: Hardware-level vibration feedback when toggling student presence based on conditional history-aware logic.
+- Hybrid Backup & Restore: Export structured system state to timestamped JSON files for local redundant storage and manual file-system restoration.
 
 ## Style Guidelines:
 
-- Base Theme: High-contrast Dark Mode utilizing Pure Charcoal (#0A0A0A) for depth and Off-Black (#1A1A1A) for surface layers.
-- Interactive Primary: A sophisticated and high-vibe Dynamic Teal (#007D8A) serves as the primary action color.
-- Semantic Palette: Active highlights in Amber-Gold (#F7C358) and critical state deletions in Coral Red (#EC5E5E).
-- Typography: The primary recommended font is 'Poppins' for a precise, geometric, and contemporary avant-garde visual style.
-- Responsive Freeze Layout: Implements a horizontally scrollable sequence of active rounded tokens and sticky grid constraints.
-- Tactile Feedback: Haptic triggers at the hardware layer and subtle opacity transitions for UI modals and alert lifecycles.
-- Icon System: A minimal Sun and Moon toggle system paired with rounded utility icons for navigating class-specific controls.
+- Primary Color: Deep dynamic teal (#007D8A) used for highlighting active tokens and main UI actions.
+- Background Color: Deep charcoal (#0A0E0F), reflecting the high-contrast dark-mode requirement with a hint of teal hue saturation (15%).
+- Accent Color: Forest mint (#008A76), an analogous hue used for secondary active indicators and supportive contrast.
+- Status Colors: Emerald green (#50C878) for presence, bold red (#FF4B4B) for absence, and amber-gold (#F7C358) for fine banners.
+- Headline and Display font: 'Alegreya', providing a warm, slightly humanist/literary feel for numbers and names; Body font: 'Inter' for high-precision, objective tabular data.
+- A 'mobile-first' Single Page Architecture featuring sticky boundaries for tabular columns/rows and a horizontally scrollable navigation system.
+- Fluid modal transitions and haptic feedback loops synced with real-time Firestore database updates.

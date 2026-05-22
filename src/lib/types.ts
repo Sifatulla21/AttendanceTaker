@@ -1,26 +1,30 @@
-
 export interface Student {
   id: string;
   roll: number;
-}
-
-export interface ClassSession {
-  id: string;
-  name: string;
-  userId: string;
+  name?: string;
 }
 
 export interface AttendanceRecord {
   date: string; // YYYY-MM-DD
-  status: 'Present' | 'Absent';
+  status: 'present' | 'absent';
 }
 
-export interface DayConfig {
-  date: string; // YYYY-MM-DD
-  isOnDay: boolean;
+export interface ClassData {
+  id: string;
+  name: string;
+  students: Student[];
+  onDays: string[]; // List of dates that are "On Days"
+  attendance: Record<string, Record<string, 'present' | 'absent'>>; // studentId -> date -> status
 }
 
 export interface AppSettings {
   vibration: boolean;
   fineRate: number;
+  theme: 'light' | 'dark';
+}
+
+export interface AppState {
+  classes: ClassData[];
+  selectedClassId: string | null;
+  settings: AppSettings;
 }

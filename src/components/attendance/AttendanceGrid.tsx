@@ -1,326 +1,478 @@
-
 "use client"
 
-import { useStore } from '@/lib/store';
-import { cn } from '@/lib/utils';
-import { Check, UserPlus, Trash2, Edit, Loader2 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { useState, useMemo, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useApp } from '@/lib/store';
+import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, setMonth, setYear } from 'date-fns';
+import { Check, X, ChevronLeft, ChevronRight, UserPlus, Trash2, Edit2, Plus, Search, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { MonthSelector } from './MonthSelector';
-import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
-import { doc, setDoc, deleteDoc, collection, query, where, updateDoc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+
+const months = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 11 }, (_, i) => (currentYear - 5 + i).toString());
 
 export function AttendanceGrid() {
-  const { user } = useUser();
-  const db = useFirestore();
-  const { 
-    selectedClassId, 
-    vibrationEnabled,
-    hasHydrated
-  } = useStore();
-
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const { state, selectClass, addClass, addStudent, deleteStudent, toggleOnDay, markAttendance, updateClass, deleteClass } = useApp();
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [newRoll, setNewRoll] = useState('');
   const [isEditClassOpen, setIsEditClassOpen] = useState(false);
-  const [editClassName, setEditClassName] = useState('');
+  const [editingClassName, setEditingClassName] = useState('');
+  const [newClassName, setNewClassName] = useState('');
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Search state
+  const [searchRoll, setSearchRoll] = useState('');
+  const [searchedStudent, setSearchedStudent] = useState<any>(null);
 
   useEffect(() => {
+    setIsMounted(true);
     setCurrentDate(new Date());
   }, []);
 
-  const classRef = useMemo(() => {
-    if (!user || !selectedClassId || !hasHydrated) return null;
-    return doc(db, 'users', user.uid, 'classes', selectedClassId);
-  }, [db, user, selectedClassId, hasHydrated]);
-  
-  const { data: selectedClass, loading: classLoading } = useDoc<any>(classRef);
-
-  const attendanceQuery = useMemo(() => {
-    if (!user || !selectedClassId || !hasHydrated) return null;
-    return query(
-      collection(db, 'users', user.uid, 'attendance'),
-      where('classId', '==', selectedClassId)
-    );
-  }, [db, user, selectedClassId, hasHydrated]);
-  
-  const { data: attendanceDocs, loading: attendanceLoading } = useCollection<any>(attendanceQuery);
-
-  const onDaysQuery = useMemo(() => {
-    if (!user || !selectedClassId || !hasHydrated) return null;
-    return query(
-      collection(db, 'users', user.uid, 'onDays'),
-      where('classId', '==', selectedClassId)
-    );
-  }, [db, user, selectedClassId, hasHydrated]);
-  
-  const { data: onDaysDocs, loading: onDaysLoading } = useCollection<any>(onDaysQuery);
-
-  const classAttendance = useMemo(() => {
-    const map: any = {};
-    attendanceDocs?.forEach(doc => {
-      map[doc.dateKey] = doc.data;
-    });
-    return map;
-  }, [attendanceDocs]);
-
-  const classOnDays = useMemo(() => {
-    const map: any = {};
-    onDaysDocs?.forEach(doc => {
-      map[doc.dateKey] = true;
-    });
-    return map;
-  }, [onDaysDocs]);
-
-  const sortedOnDayKeys = useMemo(() => {
-    return Object.keys(classOnDays).sort();
-  }, [classOnDays]);
+  const selectedClass = state.classes.find(c => c.id === state.selectedClassId);
 
   const daysInMonth = useMemo(() => {
-    if (!currentDate) return [];
     return eachDayOfInterval({
       start: startOfMonth(currentDate),
       end: endOfMonth(currentDate)
     });
   }, [currentDate]);
 
-  const handleToggleAttendance = (dateKey: string, roll: number) => {
-    if (!classOnDays[dateKey] || !user || !selectedClassId) return;
-
-    const currentDayData = classAttendance[dateKey] || {};
-    const isCurrentlyPresent = !!currentDayData[roll];
-    const willBePresent = !isCurrentlyPresent;
-
-    // Vibrate ONLY if student missed the previous "on day" and is now present
-    if (willBePresent && vibrationEnabled && typeof window !== 'undefined' && window.navigator.vibrate) {
-      const currentIndex = sortedOnDayKeys.indexOf(dateKey);
-      if (currentIndex > 0) {
-        const prevOnDayKey = sortedOnDayKeys[currentIndex - 1];
-        const wasAbsentOnPrev = !classAttendance[prevOnDayKey]?.[roll];
-        if (wasAbsentOnPrev) {
-          window.navigator.vibrate([150, 80, 150]);
-        }
-      }
+  const handleCreateClass = () => {
+    if (newClassName.trim()) {
+      addClass(newClassName.trim());
+      setNewClassName('');
     }
-
-    const docId = `${selectedClassId}_${dateKey}`;
-    const docRef = doc(db, 'users', user.uid, 'attendance', docId);
-    
-    updateDoc(docRef, {
-      [`data.${roll}`]: willBePresent,
-      classId: selectedClassId,
-      dateKey: dateKey
-    }).catch(async (err: any) => {
-      if (err.code === 'not-found') {
-        setDoc(docRef, {
-          classId: selectedClassId,
-          dateKey,
-          data: { [roll]: willBePresent }
-        }, { merge: true }).catch(async () => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'write',
-            requestResourceData: { [roll]: willBePresent }
-          }));
-        });
-      }
-    });
   };
 
-  const handleToggleOnDay = (dateKey: string) => {
-    if (!user || !selectedClassId) return;
-    const docId = `${selectedClassId}_${dateKey}`;
-    const docRef = doc(db, 'users', user.uid, 'onDays', docId);
-    
-    if (classOnDays[dateKey]) {
-      deleteDoc(docRef);
-    } else {
-      setDoc(docRef, { classId: selectedClassId, dateKey, active: true });
-    }
+  const handleSearch = () => {
+    if (!selectedClass) return;
+    const student = selectedClass.students.find(s => s.roll.toString() === searchRoll);
+    setSearchedStudent(student || null);
+  };
+
+  if (!isMounted) return null;
+
+  if (state.classes.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center bg-card rounded-2xl shadow-inner border border-dashed border-primary/30">
+        <div className="p-4 bg-primary/10 rounded-full mb-4">
+          <Plus className="w-12 h-12 text-primary" />
+        </div>
+        <h3 className="text-xl font-headline font-bold mb-2 text-primary">Ready to start?</h3>
+        <p className="text-muted-foreground mb-6">Create your first class to begin tracking attendance.</p>
+        
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button className="rounded-full px-8 bg-primary hover:bg-primary/90 shadow-lg gap-2">
+              <Plus className="h-4 w-4" /> Create First Class
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Class</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <Input 
+                placeholder="Class Name (e.g. Physics Section A)" 
+                value={newClassName}
+                onChange={(e) => setNewClassName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateClass()}
+              />
+            </div>
+            <DialogFooter>
+              <Button onClick={handleCreateClass} disabled={!newClassName.trim()}>
+                Create Class
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  const prevMonth = () => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const nextMonth = () => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+
+  const handleMonthChange = (monthName: string) => {
+    const monthIndex = months.indexOf(monthName);
+    setCurrentDate(prev => setMonth(prev, monthIndex));
+  };
+
+  const handleYearChange = (year: string) => {
+    setCurrentDate(prev => setYear(prev, parseInt(year)));
   };
 
   const handleAddStudent = () => {
     const rollNum = parseInt(newRoll);
-    if (!isNaN(rollNum) && classRef) {
-      const updatedStudents = [...(selectedClass.students || []).filter((s: any) => s.roll !== rollNum), { roll: rollNum }]
-        .sort((a, b) => a.roll - b.roll);
-      
-      updateDoc(classRef, { students: updatedStudents });
+    if (!isNaN(rollNum)) {
+      addStudent(rollNum);
       setNewRoll('');
       setIsAddStudentOpen(false);
     }
   };
 
-  const handleDeleteStudent = (roll: number) => {
-    if (classRef) {
-      const updatedStudents = (selectedClass.students || []).filter((s: any) => s.roll !== roll);
-      updateDoc(classRef, { students: updatedStudents });
-    }
-  };
-
   const handleRenameClass = () => {
-    if (classRef && editClassName.trim()) {
-      updateDoc(classRef, { name: editClassName.trim() });
+    if (editingClassName && state.selectedClassId) {
+      updateClass(state.selectedClassId, editingClassName);
       setIsEditClassOpen(false);
     }
   };
 
-  if (!hasHydrated || !currentDate) return null;
+  const handleDeleteClass = () => {
+    if (state.selectedClassId) {
+      deleteClass(state.selectedClassId);
+    }
+  };
 
-  if (!selectedClassId) {
-    return (
-      <div className="flex flex-col items-center justify-center p-20 text-muted-foreground bg-card/50 rounded-[3rem] border-2 border-dashed border-muted-foreground/10 font-headline italic text-xl gap-4">
-        Select a class above to begin tracking
-      </div>
-    );
-  }
-  
-  if (!user || classLoading || !selectedClass) {
-    return (
-      <div className="flex flex-col items-center justify-center p-20 text-muted-foreground animate-pulse font-headline italic text-2xl gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        Syncing Registry...
-      </div>
-    );
-  }
+  const totalPresentByDay = daysInMonth.map(day => {
+    const dateStr = format(day, 'yyyy-MM-dd');
+    if (!selectedClass?.onDays.includes(dateStr)) return null;
+    return selectedClass.students.reduce((acc, student) => {
+      return acc + (selectedClass.attendance[student.id]?.[dateStr] === 'present' ? 1 : 0);
+    }, 0);
+  });
 
   return (
-    <div className="flex-1 flex flex-col space-y-6">
-      <div className="bg-card border rounded-3xl p-6 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-6">
-        <div className="space-y-1 text-center lg:text-left">
-          <h2 className="text-[10px] font-headline text-muted-foreground uppercase tracking-[0.3em]">Month View</h2>
-          <MonthSelector currentDate={currentDate} onDateChange={setCurrentDate} />
+    <div className="space-y-6">
+      {/* Search and Class Selection Header */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-muted-foreground px-1 uppercase tracking-wider">Select Class</label>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {state.classes.map(c => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  selectClass(c.id);
+                  setSearchedStudent(null);
+                  setSearchRoll('');
+                }}
+                className={cn(
+                  "whitespace-nowrap px-6 py-2 rounded-full font-medium transition-all duration-300 border",
+                  state.selectedClassId === c.id 
+                    ? "bg-primary text-primary-foreground border-primary shadow-lg scale-105" 
+                    : "bg-secondary text-secondary-foreground border-transparent hover:bg-secondary/80"
+                )}
+              >
+                {c.name}
+              </button>
+            ))}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="rounded-full border-primary text-primary hover:bg-primary/10 px-6 h-10">
+                  <Plus className="h-4 w-4 mr-1" /> Class
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Create New Class</DialogTitle></DialogHeader>
+                <div className="py-4">
+                  <Input 
+                    placeholder="Class Name" 
+                    value={newClassName}
+                    onChange={(e) => setNewClassName(e.target.value)}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button onClick={handleCreateClass} disabled={!newClassName.trim()}>Create</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button variant="outline" className="bg-background rounded-2xl h-12 px-6 text-sm border-muted-foreground/10" onClick={() => { setEditClassName(selectedClass.name); setIsEditClassOpen(true); }}>
-            <Edit className="h-4 w-4 mr-2" /> Rename
-          </Button>
-          <Button className="bg-primary hover:bg-primary/90 text-white rounded-2xl h-12 px-8 text-sm shadow-lg shadow-primary/20" onClick={() => setIsAddStudentOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-2" /> Add Student
-          </Button>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-muted-foreground px-1 uppercase tracking-wider">Search Roll Number</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Enter roll..." 
+                className="pl-9 h-10 rounded-full bg-card" 
+                value={searchRoll}
+                onChange={(e) => setSearchRoll(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              />
+            </div>
+            <Button onClick={handleSearch} className="rounded-full px-6 h-10">Search</Button>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-[2.5rem] border bg-card shadow-xl overflow-hidden border-border/50 relative">
-        <div className="overflow-x-auto max-h-[70vh] scrollbar-hide overscroll-none">
-          <table className="w-full border-separate border-spacing-0 font-technical text-sm">
-            <thead>
-              <tr className="z-[60]">
-                {/* Roll Column Header - STICKY */}
-                <th className="sticky left-0 top-0 bg-card border-r border-b p-5 font-bold w-24 text-center text-lg z-[70] shadow-[2px_2px_5px_-2px_rgba(0,0,0,0.1)]">Roll</th>
-                {/* Date Headers - STICKY TOP */}
-                {daysInMonth.map(day => (
-                  <th key={day.toISOString()} className="sticky top-0 p-4 border-r border-b min-w-[70px] text-center bg-card z-50">
-                    <div className="text-[10px] uppercase text-muted-foreground font-bold tracking-tighter">{format(day, 'EEE')}</div>
-                    <div className="text-lg font-bold">{format(day, 'd')}</div>
-                  </th>
-                ))}
-              </tr>
-              <tr className="bg-muted/30">
-                {/* Working Day Label - Sticky ONLY Left */}
-                <th className="sticky left-0 bg-muted border-r border-b p-3 text-[10px] font-bold uppercase text-center text-primary/70 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Working</th>
-                {/* Working Day Checkboxes - NO STICKY TOP */}
-                {daysInMonth.map(day => {
-                  const dateKey = format(day, 'yyyy-MM-dd');
-                  const isOnDay = classOnDays[dateKey];
-                  return (
-                    <td key={day.toISOString()} className="p-3 border-r border-b text-center bg-muted/5">
-                      <button
-                        onClick={() => handleToggleOnDay(dateKey)}
-                        className={cn(
-                          "h-8 w-8 rounded-xl border-2 transition-all mx-auto flex items-center justify-center",
-                          isOnDay ? "bg-primary border-primary text-white shadow-md scale-110" : "bg-background border-muted-foreground/20 text-transparent hover:border-primary/50"
-                        )}
-                      >
-                        {isOnDay && <Check className="h-4 w-4" />}
-                      </button>
-                    </td>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {(selectedClass.students || []).map((student: any) => (
-                <tr key={student.roll} className="hover:bg-muted/5 transition-colors group">
-                  {/* Student Roll - STICKY LEFT */}
-                  <th className="sticky left-0 bg-card border-r border-b p-5 text-lg font-bold flex items-center justify-center gap-3 z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                    <span className="text-primary">{student.roll}</span>
-                    <button onClick={() => handleDeleteStudent(student.roll)} className="text-destructive/20 hover:text-destructive transition-all">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </th>
-                  {/* Attendance Cells */}
+      {/* Searched Student View */}
+      {searchedStudent && selectedClass && (
+        <div className="animate-in fade-in slide-in-from-top-4 duration-300">
+          <Card className="border-primary/20 shadow-xl overflow-hidden">
+            <CardHeader className="bg-primary/5 flex flex-row items-center justify-between py-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Button variant="ghost" size="icon" onClick={() => setSearchedStudent(null)} className="h-8 w-8 rounded-full">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                Individual Record: Roll {searchedStudent.roll}
+              </CardTitle>
+              <span className="text-sm font-medium text-muted-foreground">
+                {months[currentDate.getMonth()]} {currentDate.getFullYear()}
+              </span>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    {daysInMonth.map(day => {
+                      const isOn = selectedClass.onDays.includes(format(day, 'yyyy-MM-dd'));
+                      if (!isOn) return null;
+                      return (
+                        <th key={day.toISOString()} className="p-3 text-[10px] font-bold uppercase text-center min-w-[50px] border-r">
+                          {format(day, 'd')}<br/>{format(day, 'EEE')}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    {daysInMonth.map(day => {
+                      const dateStr = format(day, 'yyyy-MM-dd');
+                      const isOn = selectedClass.onDays.includes(dateStr);
+                      if (!isOn) return null;
+                      const status = selectedClass.attendance[searchedStudent.id]?.[dateStr];
+                      return (
+                        <td key={dateStr} className={cn(
+                          "p-4 text-center border-r h-16",
+                          status === 'present' ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
+                        )}>
+                          {status === 'present' ? <Check className="h-6 w-6 mx-auto" /> : <X className="h-6 w-6 mx-auto" />}
+                          <span className="text-[10px] font-bold block mt-1 uppercase">{status || 'absent'}</span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+              {selectedClass.onDays.filter(d => format(parseISO(d), 'M') === (currentDate.getMonth() + 1).toString()).length === 0 && (
+                <div className="p-8 text-center text-muted-foreground italic">
+                  No "On Days" scheduled for this student in the selected month.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {selectedClass && !searchedStudent && (
+        <div className="bg-card rounded-2xl shadow-xl overflow-hidden border">
+          <div className="p-4 bg-muted/30 border-b flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={prevMonth} className="rounded-full border-primary/30 h-8 w-8">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <div className="flex gap-2">
+                <Select value={months[currentDate.getMonth()]} onValueChange={handleMonthChange}>
+                  <SelectTrigger className="w-[130px] h-8 rounded-full border-primary/30 font-bold bg-background">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map(m => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={currentDate.getFullYear().toString()} onValueChange={handleYearChange}>
+                  <SelectTrigger className="w-[100px] h-8 rounded-full border-primary/30 font-bold bg-background">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.map(y => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button variant="outline" size="icon" onClick={nextMonth} className="rounded-full border-primary/30 h-8 w-8">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Dialog open={isEditClassOpen} onOpenChange={(open) => {
+                setIsEditClassOpen(open);
+                if(open) setEditingClassName(selectedClass.name);
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" size="sm" className="bg-[#F7C358] hover:bg-[#F7C358]/80 text-black gap-1 h-8 rounded-full">
+                    <Edit2 className="h-3 w-3" /> Edit
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Rename Class</DialogTitle></DialogHeader>
+                  <Input value={editingClassName} onChange={(e) => setEditingClassName(e.target.value)} />
+                  <DialogFooter><Button onClick={handleRenameClass}>Update</Button></DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="secondary" size="sm" className="bg-destructive hover:bg-destructive/80 text-white gap-1 h-8 rounded-full">
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete the class "{selectedClass.name}" and all associated attendance records.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteClass} className="bg-destructive text-white hover:bg-destructive/90">
+                      Delete Class
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="bg-[#007D8A] hover:bg-[#007D8A]/80 text-white gap-1 h-8 rounded-full shadow-md">
+                    <UserPlus className="h-3 w-3" /> Student
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Add New Student</DialogTitle></DialogHeader>
+                  <Input 
+                    placeholder="Enter Roll Number" 
+                    type="number" 
+                    value={newRoll} 
+                    onChange={(e) => setNewRoll(e.target.value)} 
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
+                  />
+                  <DialogFooter><Button onClick={handleAddStudent}>Add</Button></DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="attendance-grid-container relative">
+            <table className="w-full border-collapse table-fixed md:table-auto">
+              <thead>
+                <tr className="bg-muted/80">
+                  <th className="sticky-both p-3 text-sm font-bold border min-w-32">Roll</th>
                   {daysInMonth.map(day => {
-                    const dateKey = format(day, 'yyyy-MM-dd');
-                    const isOnDay = classOnDays[dateKey];
-                    const isPresent = classAttendance[dateKey]?.[student.roll];
+                    const isToday = isSameDay(day, new Date());
                     return (
-                      <td
-                        key={day.toISOString()}
-                        onClick={() => handleToggleAttendance(dateKey, student.roll)}
-                        className={cn(
-                          "p-0 border-r border-b min-w-[70px] h-16 transition-all cursor-pointer relative",
-                          !isOnDay ? "bg-muted/10" : (isPresent ? "bg-status-present/10 hover:bg-status-present/20" : "bg-status-absent/10 hover:bg-status-absent/20")
-                        )}
-                      >
-                        {isOnDay && (
-                          <div className={cn(
-                            "flex items-center justify-center w-full h-full text-2xl font-bold",
-                            isPresent ? "text-status-present" : "text-status-absent"
-                          )}>
-                            {isPresent ? <Check className="h-8 w-8" /> : "A"}
-                          </div>
-                        )}
-                      </td>
+                      <th key={day.toISOString()} className={cn(
+                        "sticky-row p-2 text-xs border min-w-14 text-center",
+                        isToday && "bg-primary/20 ring-2 ring-primary ring-inset z-30",
+                        !isToday && "bg-muted/30"
+                      )}>
+                        <div className="flex flex-col font-bold">
+                          <span>{format(day, 'd')}</span>
+                          <span className="text-[10px] opacity-60 uppercase">{format(day, 'EEE')}</span>
+                        </div>
+                      </th>
                     );
                   })}
                 </tr>
-              ))}
-            </tbody>
-            <tfoot className="sticky bottom-0 z-50">
-              <tr className="bg-primary/5 border-t-2 border-primary/20 backdrop-blur-md">
-                <th className="sticky left-0 bg-primary/10 border-r p-5 font-headline text-sm font-bold uppercase tracking-wider text-center text-primary z-40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Total Present</th>
-                {daysInMonth.map(day => {
-                  const dateKey = format(day, 'yyyy-MM-dd');
-                  const isOnDay = classOnDays[dateKey];
-                  const totalPresent = (selectedClass.students || []).filter((s: any) => classAttendance[dateKey]?.[s.roll]).length;
-                  return (
-                    <td key={day.toISOString()} className="p-4 border-r text-center font-bold text-xl text-primary bg-primary/5">
-                      {isOnDay ? totalPresent : "-"}
+                <tr className="bg-muted/40">
+                  <th className="sticky-col p-2 text-xs font-bold border text-muted-foreground">On Day</th>
+                  {daysInMonth.map(day => {
+                    const dateStr = format(day, 'yyyy-MM-dd');
+                    const isOn = selectedClass.onDays.includes(dateStr);
+                    return (
+                      <th key={`on-${dateStr}`} className="p-2 border text-center">
+                        <div 
+                          onClick={() => toggleOnDay(dateStr)}
+                          className={cn(
+                            "w-6 h-6 rounded-full mx-auto cursor-pointer flex items-center justify-center transition-all",
+                            isOn ? "bg-primary text-white" : "border-2 border-muted-foreground/30"
+                          )}
+                        >
+                          {isOn && <Check className="h-3 w-3" />}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {selectedClass.students.map(student => (
+                  <tr key={student.id} className="hover:bg-muted/10 transition-colors">
+                    <td className="sticky-col p-3 border font-bold text-sm group flex items-center justify-between gap-2">
+                      <span>{student.roll}</span>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <button onClick={() => deleteStudent(student.id)} className="text-destructive hover:scale-110"><X className="h-3 w-3"/></button>
+                      </div>
                     </td>
-                  );
-                })}
-              </tr>
-            </tfoot>
-          </table>
+                    {daysInMonth.map(day => {
+                      const dateStr = format(day, 'yyyy-MM-dd');
+                      const isOn = selectedClass.onDays.includes(dateStr);
+                      const status = selectedClass.attendance[student.id]?.[dateStr];
+                      
+                      return (
+                        <td 
+                          key={`${student.id}-${dateStr}`}
+                          onClick={() => {
+                            if (!isOn) return;
+                            const nextStatus = status === 'present' ? 'absent' : 'present';
+                            markAttendance(student.id, dateStr, nextStatus);
+                          }}
+                          className={cn(
+                            "p-2 border text-center cursor-pointer transition-all h-12",
+                            !isOn ? "cell-off-day" : 
+                            status === 'present' ? "cell-present hover:brightness-110" : "cell-absent hover:brightness-110"
+                          )}
+                        >
+                          {isOn && (status === 'present' ? <Check className="h-4 w-4 mx-auto" /> : <X className="h-4 w-4 mx-auto" />)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="sticky bottom-0 z-20">
+                <tr className="bg-muted font-bold">
+                  <td className="sticky-col p-3 border">Total Present</td>
+                  {totalPresentByDay.map((count, idx) => (
+                    <td key={`sum-${idx}`} className="p-2 border text-center text-primary bg-card">
+                      {count !== null ? count : '-'}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
-      </div>
-
-      <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-8">
-          <DialogHeader><DialogTitle className="font-headline text-3xl italic">New Student</DialogTitle></DialogHeader>
-          <div className="py-6">
-            <Input type="number" value={newRoll} onChange={(e) => setNewRoll(e.target.value)} placeholder="Roll Number" className="bg-muted border-none rounded-2xl h-16 text-3xl font-technical text-center" autoFocus />
-          </div>
-          <DialogFooter><Button onClick={handleAddStudent} className="w-full bg-primary rounded-2xl h-16 text-xl font-headline shadow-lg shadow-primary/20">Enroll</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isEditClassOpen} onOpenChange={setIsEditClassOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-8">
-          <DialogHeader><DialogTitle className="font-headline text-3xl italic">Rename Class</DialogTitle></DialogHeader>
-          <div className="py-6">
-            <Input value={editClassName} onChange={(e) => setEditClassName(e.target.value)} placeholder="Class Name" className="bg-muted border-none rounded-2xl h-16 text-xl font-headline" autoFocus />
-          </div>
-          <DialogFooter><Button onClick={handleRenameClass} className="w-full bg-primary rounded-2xl h-16 text-xl font-headline shadow-lg shadow-primary/20">Update Name</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
+      )}
     </div>
   );
+}
+
+// Helper to parse ISO dates
+function parseISO(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
