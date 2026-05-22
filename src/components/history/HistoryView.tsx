@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -28,8 +27,8 @@ export function HistoryView() {
   const { state, updateSettings, selectClass } = useApp();
   const { toast } = useToast();
   const [searchRoll, setSearchRoll] = useState('');
-  const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState<Date>(startOfMonth(new Date()));
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [isRangeMode, setIsRangeMode] = useState(false);
   const [newFineRate, setNewFineRate] = useState(state.settings.fineRate.toString());
   const [isFineDialogOpen, setIsFineDialogOpen] = useState(false);
@@ -37,6 +36,8 @@ export function HistoryView() {
 
   useEffect(() => {
     setIsMounted(true);
+    setStartDate(startOfMonth(new Date()));
+    setEndDate(startOfMonth(new Date()));
   }, []);
 
   useEffect(() => {
@@ -46,7 +47,7 @@ export function HistoryView() {
   const selectedClass = state.classes.find(c => c.id === state.selectedClassId);
 
   const stats = useMemo(() => {
-    if (!selectedClass) return { totalOnDays: 0, studentStats: [], totalClassFine: 0, totalClassAbsences: 0 };
+    if (!selectedClass || !startDate || !endDate) return { totalOnDays: 0, studentStats: [], totalClassFine: 0, totalClassAbsences: 0 };
     
     const rangeStart = startOfMonth(startDate);
     const rangeEnd = isRangeMode ? endOfMonth(endDate) : endOfMonth(startDate);
@@ -81,7 +82,7 @@ export function HistoryView() {
   }, [selectedClass, startDate, endDate, isRangeMode, state.settings.fineRate]);
 
   const downloadPdfReport = () => {
-    if (!selectedClass) return;
+    if (!selectedClass || !startDate || !endDate) return;
     try {
       const doc = new jsPDF();
       
@@ -131,21 +132,21 @@ export function HistoryView() {
   const handleMonthChange = (monthName: string, type: 'start' | 'end') => {
     const monthIndex = months.indexOf(monthName);
     if (type === 'start') {
-      setStartDate(prev => setMonth(prev, monthIndex));
+      setStartDate(prev => prev ? setMonth(prev, monthIndex) : null);
     } else {
-      setEndDate(prev => setMonth(prev, monthIndex));
+      setEndDate(prev => prev ? setMonth(prev, monthIndex) : null);
     }
   };
 
   const handleYearChange = (year: string, type: 'start' | 'end') => {
     if (type === 'start') {
-      setStartDate(prev => setYear(prev, parseInt(year)));
+      setStartDate(prev => prev ? setYear(prev, parseInt(year)) : null);
     } else {
-      setEndDate(prev => setYear(prev, parseInt(year)));
+      setEndDate(prev => prev ? setYear(prev, parseInt(year)) : null);
     }
   };
 
-  if (!isMounted) return null;
+  if (!isMounted || !startDate || !endDate) return null;
 
   return (
     <div className="space-y-6 pb-20">
@@ -317,13 +318,6 @@ export function HistoryView() {
                         <td className="p-4 text-right font-black text-primary">{s.fine} ৳</td>
                       </tr>
                     ))}
-                  {stats.studentStats.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="p-12 text-center text-muted-foreground italic">
-                        {selectedClass ? "No attendance data for this period." : "Please select a class above."}
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>

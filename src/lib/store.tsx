@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
@@ -18,10 +17,7 @@ import {
   addDoc, 
   deleteDoc, 
   updateDoc,
-  query,
-  where,
-  getDocs,
-  collectionGroup
+  writeBatch
 } from 'firebase/firestore';
 import { 
   signInWithPopup, 
@@ -57,29 +53,25 @@ const defaultSettings: AppSettings = {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { user, loading: userLoading } = useUser();
+  const { user } = useUser();
   const db = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
 
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
-  // 1. Fetch User Settings
   const settingsRef = useMemo(() => user && db ? doc(db, 'users', user.uid, 'settings', 'prefs') : null, [user, db]);
-  const { data: remoteSettings, loading: settingsLoading } = useDoc<AppSettings>(settingsRef);
+  const { data: remoteSettings } = useDoc<AppSettings>(settingsRef);
 
-  // 2. Fetch Classes
   const classesRef = useMemo(() => user && db ? collection(db, 'users', user.uid, 'classes') : null, [user, db]);
-  const { data: remoteClasses, loading: classesLoading } = useCollection<any>(classesRef);
+  const { data: remoteClasses } = useCollection<any>(classesRef);
 
-  // 3. Fetch Students for Selected Class
   const studentsRef = useMemo(() => 
     user && db && selectedClassId ? collection(db, 'users', user.uid, 'classes', selectedClassId, 'students') : null, 
     [user, db, selectedClassId]
   );
-  const { data: remoteStudents, loading: studentsLoading } = useCollection<any>(studentsRef);
+  const { data: remoteStudents } = useCollection<any>(studentsRef);
 
-  // Auto-select first class if none selected
   useEffect(() => {
     if (remoteClasses && remoteClasses.length > 0 && !selectedClassId) {
       setSelectedClassId(remoteClasses[0].id);
@@ -88,7 +80,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const state = useMemo((): AppState => {
     const classes = (remoteClasses || []).map(c => {
-      // If this is the selected class, we enrich it with students and attendance
       const isSelected = c.id === selectedClassId;
       const students: Student[] = isSelected ? (remoteStudents || []).map(s => ({
         id: s.id,
@@ -193,7 +184,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const markAttendance = (studentId: string, date: string, status: 'present' | 'absent') => {
     if (!user || !db || !selectedClassId) return;
     
-    // Haptic Feedback Logic
     if (state.settings.vibration && status === 'present') {
       const cls = state.classes.find(c => c.id === selectedClassId);
       if (cls) {
@@ -210,9 +200,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-
-    const student = remoteStudents?.find(s => s.id === studentId);
-    if (!student) return;
 
     const ref = doc(db, 'users', user.uid, 'classes', selectedClassId, 'students', studentId);
     updateDoc(ref, {
@@ -237,11 +224,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toast({ title: "Backup Complete" });
   };
 
-  const restore = async (data: string) => {
-    // Note: Restore is complex with Firestore. 
-    // This would require iterating and batch writing. 
-    // For MVP, we'll keep the toast warning but encourage cloud use.
-    toast({ variant: "destructive", title: "Cloud Sync Active", description: "Manual restore is disabled while cloud sync is active." });
+  const restore = async (jsonData: string) => {
+    if (!user || !db) return;
+    try {
+      const parsed = JSON.parse(jsonData) as AppState;
+      toast({ title: "Restoring...", description: "Please wait while we sync your data." });
+
+      if (parsed.settings) {
+        await setDoc(doc(db, 'users', user.uid, 'settings', 'prefs'), parsed.settings);
+      }
+
+      for (const cls of parsed.classes) {
+        const classRef = await addDoc(collection(db, 'users', user.uid, 'classes'), {
+          name: cls.name,
+          onDays: cls.onDays
+        });
+
+        for (const student of cls.students) {
+          const studentAttendance = cls.attendance[student.id] || {};
+          await addDoc(collection(db, 'users', user.uid, 'classes', classRef.id, 'students'), {
+            roll: student.roll,
+            attendance: studentAttendance
+          });
+        }
+      }
+
+      toast({ title: "Restore Successful", description: "Your cloud records have been updated." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Restore Failed", description: "Invalid backup file format." });
+    }
   };
 
   return (
@@ -263,7 +274,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       backup,
       restore
     }}>
-      {!userLoading && children}
+      {children}
     </AppContext.Provider>
   );
 }

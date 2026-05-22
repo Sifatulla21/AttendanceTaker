@@ -32,7 +32,7 @@ const years = Array.from({ length: 11 }, (_, i) => (currentYear - 5 + i).toStrin
 
 export function AttendanceGrid() {
   const { state, selectClass, addClass, addStudent, deleteStudent, toggleOnDay, markAttendance, updateClass, deleteClass } = useApp();
-  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [newRoll, setNewRoll] = useState('');
   const [isEditClassOpen, setIsEditClassOpen] = useState(false);
@@ -40,7 +40,6 @@ export function AttendanceGrid() {
   const [newClassName, setNewClassName] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   
-  // Search state
   const [searchRoll, setSearchRoll] = useState('');
   const [searchedStudent, setSearchedStudent] = useState<any>(null);
 
@@ -52,6 +51,7 @@ export function AttendanceGrid() {
   const selectedClass = state.classes.find(c => c.id === state.selectedClassId);
 
   const daysInMonth = useMemo(() => {
+    if (!currentDate) return [];
     return eachDayOfInterval({
       start: startOfMonth(currentDate),
       end: endOfMonth(currentDate)
@@ -71,7 +71,7 @@ export function AttendanceGrid() {
     setSearchedStudent(student || null);
   };
 
-  if (!isMounted) return null;
+  if (!isMounted || !currentDate) return null;
 
   if (state.classes.length === 0) {
     return (
@@ -94,7 +94,7 @@ export function AttendanceGrid() {
             </DialogHeader>
             <div className="py-4">
               <Input 
-                placeholder="Class Name (e.g. Physics Section A)" 
+                placeholder="Class Name" 
                 value={newClassName}
                 onChange={(e) => setNewClassName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateClass()}
@@ -111,16 +111,16 @@ export function AttendanceGrid() {
     );
   }
 
-  const prevMonth = () => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  const nextMonth = () => setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  const prevMonth = () => setCurrentDate(prev => prev ? new Date(prev.getFullYear(), prev.getMonth() - 1, 1) : null);
+  const nextMonth = () => setCurrentDate(prev => prev ? new Date(prev.getFullYear(), prev.getMonth() + 1, 1) : null);
 
   const handleMonthChange = (monthName: string) => {
     const monthIndex = months.indexOf(monthName);
-    setCurrentDate(prev => setMonth(prev, monthIndex));
+    setCurrentDate(prev => prev ? setMonth(prev, monthIndex) : null);
   };
 
   const handleYearChange = (year: string) => {
-    setCurrentDate(prev => setYear(prev, parseInt(year)));
+    setCurrentDate(prev => prev ? setYear(prev, parseInt(year)) : null);
   };
 
   const handleAddStudent = () => {
@@ -155,7 +155,6 @@ export function AttendanceGrid() {
 
   return (
     <div className="space-y-6">
-      {/* Search and Class Selection Header */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
         <div className="space-y-2">
           <label className="text-sm font-semibold text-muted-foreground px-1 uppercase tracking-wider">Select Class</label>
@@ -219,7 +218,6 @@ export function AttendanceGrid() {
         </div>
       </div>
 
-      {/* Searched Student View */}
       {searchedStudent && selectedClass && (
         <div className="animate-in fade-in slide-in-from-top-4 duration-300">
           <Card className="border-primary/20 shadow-xl overflow-hidden">
@@ -269,11 +267,6 @@ export function AttendanceGrid() {
                   </tr>
                 </tbody>
               </table>
-              {selectedClass.onDays.filter(d => format(parseISO(d), 'M') === (currentDate.getMonth() + 1).toString()).length === 0 && (
-                <div className="p-8 text-center text-muted-foreground italic">
-                  No "On Days" scheduled for this student in the selected month.
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -343,7 +336,7 @@ export function AttendanceGrid() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the class "{selectedClass.name}" and all associated attendance records.
+                      This action cannot be undone. This will permanently delete the class "{selectedClass.name}" and all records.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -380,7 +373,7 @@ export function AttendanceGrid() {
             <table className="w-full border-collapse table-fixed md:table-auto">
               <thead>
                 <tr className="bg-muted/80">
-                  <th className="sticky-both p-3 text-sm font-bold border min-w-32">Roll</th>
+                  <th className="sticky-both p-3 text-sm font-bold border min-w-32 bg-card">Roll</th>
                   {daysInMonth.map(day => {
                     const isToday = isSameDay(day, new Date());
                     return (
@@ -398,7 +391,7 @@ export function AttendanceGrid() {
                   })}
                 </tr>
                 <tr className="bg-muted/40">
-                  <th className="sticky-col p-2 text-xs font-bold border text-muted-foreground">On Day</th>
+                  <th className="sticky-col p-2 text-xs font-bold border text-muted-foreground bg-card">On Day</th>
                   {daysInMonth.map(day => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const isOn = selectedClass.onDays.includes(dateStr);
@@ -421,7 +414,7 @@ export function AttendanceGrid() {
               <tbody>
                 {selectedClass.students.map(student => (
                   <tr key={student.id} className="hover:bg-muted/10 transition-colors">
-                    <td className="sticky-col p-3 border font-bold text-sm group flex items-center justify-between gap-2">
+                    <td className="sticky-col p-3 border font-bold text-sm group flex items-center justify-between gap-2 bg-card">
                       <span>{student.roll}</span>
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                         <button onClick={() => deleteStudent(student.id)} className="text-destructive hover:scale-110"><X className="h-3 w-3"/></button>
@@ -455,7 +448,7 @@ export function AttendanceGrid() {
               </tbody>
               <tfoot className="sticky bottom-0 z-20">
                 <tr className="bg-muted font-bold">
-                  <td className="sticky-col p-3 border">Total Present</td>
+                  <td className="sticky-col p-3 border bg-card">Total Present</td>
                   {totalPresentByDay.map((count, idx) => (
                     <td key={`sum-${idx}`} className="p-2 border text-center text-primary bg-card">
                       {count !== null ? count : '-'}
@@ -469,10 +462,4 @@ export function AttendanceGrid() {
       )}
     </div>
   );
-}
-
-// Helper to parse ISO dates
-function parseISO(dateStr: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d);
 }
